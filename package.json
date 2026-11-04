@@ -5,13 +5,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "npm run db:migrate && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:smoke": "tsx --env-file=.env.local scripts/db-smoke.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
+    "db:check-choose": "tsx --env-file=.env.local scripts/choose-idempotency.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

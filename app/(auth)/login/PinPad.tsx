@@ -43,7 +43,7 @@ export function PinPad() {
         {wrong > 0 && !pending ? 'PIN 이 맞지 않아요' : ''}
       </p>
       <div className="w-full max-w-72">
-        <Keypad value={pin} onChange={onChange} maxLength={PIN_LENGTH} disabled={pending} />
+        <Keypad value={pin} onChange={onChange} maxLength={PIN_LENGTH} kind="code" disabled={pending} />
       </div>
     </div>
   )

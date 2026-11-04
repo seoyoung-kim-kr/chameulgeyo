@@ -96,3 +96,20 @@ export function isCutoffDay(date: string, cutoffDay: number): boolean {
 export function daysLeft(date: string, c: Cycle): number {
   return (toEpoch(c.end) - toEpoch(date)) / DAY_MS + 1
 }
+
+/** 두 날짜('YYYY-MM-DD') 사이 일수. to 가 from 보다 앞이면 음수. */
+export function daysBetween(from: string, to: string): number {
+  return (toEpoch(to) - toEpoch(from)) / DAY_MS
+}
+
+/** 시각의 KST 'HH:mm'. 갱신 시각 표시용. */
+export function timeKst(now: Date): string {
+  const t = new Date(now.getTime() + KST_OFFSET_MS)
+  return `${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}`
+}
+
+/** 'YYYY-MM-DD' → 'M/D' */
+export function shortDate(date: string): string {
+  const { m, d } = parseDate(date)
+  return `${m}/${d}`
+}
