@@ -1,83 +1,120 @@
-'use client'
-
 import clsx from 'clsx'
 import Link from 'next/link'
-import { useCallback, useState } from 'react'
 import { Bucket } from '@/components/Bucket'
 import { buttonClass } from '@/components/Button'
-import { CardBalanceSheet } from '@/components/CardBalanceSheet'
-import { Chip } from '@/components/Chip'
 import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 
-/** 카드값을 이만큼 안 적으면 확인하라고 알린다 */
+/** 다음 카드값을 이만큼 안 옮겨 적으면 확인하라고 알린다 */
 const STALE_DAYS = 3
 
 export type HomeViewProps = {
   ym: string
   cycleStart: string
   cycleEnd: string
+  nextStart: string
+  nextEnd: string
   salary: number
-  fixedTotal: number
-  cardBalance: number
-  /** 'M/D HH:mm' (KST) */
-  cardUpdatedLabel: string
-  cardStaleDays: number
-  cardConfirmedAmount: number | null
+  /** 현금에서 빠지는 고정지출 (계좌 + 미분류) */
+  fixedCashOut: number
+  /** 카드로 결제하는 고정지출 (카드값에 들어 있어 따로 빼지 않음) */
+  fixedCard: number
+  unclassifiedCount: number
+  thisBill: { dueDate: string | null; amount: number; paid: number; remaining: number }
+  nextBill: { dueDate: string | null; amount: number }
+  nextBillStaleDays: number | null
   isCutoff: boolean
-  available: number
+  /** 이번 주기에 쓸 수 있는 돈 (현금) */
+  cash: number
+  nextCash: number
   shopping: number
   shoppingRaw: number
   shoppingExhausted: boolean
   shoppingBudgetStart: number
+  boughtTotal: number
   livingNow: number
   livingPerDay: number
   emergencyAmount: number
   heldTotal: number
 }
 
-export function HomeView(p: HomeViewProps) {
-  const [sheet, setSheet] = useState<null | 'update' | 'confirm'>(null)
-  const closeSheet = useCallback(() => setSheet(null), [])
+const range = (a: string, b: string) => `${shortDate(a)}~${shortDate(b)}`
 
-  const stale = p.cardStaleDays >= STALE_DAYS
-  // 이번 달 처음 정한 쇼핑 예산 중 얼마나 남았는지
+export function HomeView(p: HomeViewProps) {
+  const stale = p.nextBillStaleDays === null || p.nextBillStaleDays >= STALE_DAYS
+  // 이번 주기 처음 정한 쇼핑 예산 중 얼마나 남았는지
   const barPct = p.shoppingBudgetStart > 0 ? (p.shopping / p.shoppingBudgetStart) * 100 : 0
 
   return (
     <Screen
       title={`${Number(p.ym.slice(5))}월 지갑`}
-      sub={`${shortDate(p.cycleStart)}~${shortDate(p.cycleEnd)}`}
+      sub={range(p.cycleStart, p.cycleEnd)}
       action={
-        <Chip variant={stale ? 'solid' : 'ghost'} className={clsx(stale && 'text-red')} onClick={() => setSheet('update')}>
-          {stale ? '카드값 확인 필요' : '카드값 입력'}
-        </Chip>
+        <Link
+          href="/card"
+          className={clsx(
+            'inline-flex h-7 items-center rounded-full px-3 text-xs active:opacity-70',
+            stale ? 'bg-soft text-red' : 'border border-line bg-white text-muted',
+          )}
+        >
+          {p.nextBillStaleDays === null ? '카드값 입력' : stale ? '카드값 확인 필요' : '카드값'}
+        </Link>
       }
     >
       {p.isCutoff && (
-        <button type="button" onClick={() => setSheet('confirm')} className="rounded-card bg-soft p-4 text-left text-sm text-deep active:opacity-80">
+        <Link href="/card" className="rounded-card bg-soft p-4 text-sm text-deep active:opacity-80">
           <span className="block font-bold">오늘은 카드값 확정일이에요.</span>
-          <span className="block">확정된 금액을 입력해 주세요.</span>
-        </button>
+          <span className="block">다음 카드값을 확인해 주세요.</span>
+        </Link>
+      )}
+      {p.unclassifiedCount > 0 && (
+        <Link href="/setup" className="rounded-card bg-soft p-4 text-sm text-deep active:opacity-80">
+          <span className="block font-bold">결제 수단을 고르지 않은 고정지출이 {p.unclassifiedCount}건 있어요.</span>
+          <span className="block">고르기 전까지는 계좌 출금으로 계산해요.</span>
+        </Link>
       )}
 
-      <Card aria-label="다음 달 쓸 수 있는 돈">
-        <p className="text-sm text-muted">다음 달 쓸 수 있는 돈</p>
-        <p className={clsx('mt-2 text-3xl font-bold', p.available < 0 ? 'text-red' : 'text-deep')}>
-          {formatWon(p.available)}
+      <Card aria-label="이번 주기에 쓸 수 있는 돈">
+        <p className="text-sm text-muted">이번 주기에 쓸 수 있는 돈</p>
+        <p className={clsx('mt-2 text-3xl font-bold', p.cash < 0 ? 'text-red' : 'text-deep')}>
+          {formatWon(p.cash)}
           <span className="ml-0.5 text-base">원</span>
         </p>
         <dl className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-tint p-3 text-center">
           <Term label="월급" value={formatWon(p.salary)} />
-          <Term label="고정지출" value={`−${formatWon(p.fixedTotal)}`} />
-          <Term label="카드값" value={`−${formatWon(p.cardBalance)}`} />
+          <Term label="계좌 고정지출" value={`−${formatWon(p.fixedCashOut)}`} />
+          <Term label={p.thisBill.dueDate ? `카드값 ${shortDate(p.thisBill.dueDate)}` : '이번 카드값'} value={`−${formatWon(p.thisBill.amount)}`} />
         </dl>
-        <p className={clsx('mt-3 text-xs', stale ? 'text-red' : 'text-muted')}>카드값 입력 {p.cardUpdatedLabel}</p>
-        {p.cardConfirmedAmount !== null && (
-          <p className="mt-1 text-xs text-deep">다음 월급에서 {formatWon(p.cardConfirmedAmount)}원이 빠져나가요.</p>
-        )}
+        <div className="mt-3 flex flex-col gap-1 text-xs text-muted">
+          {p.thisBill.dueDate === null ? (
+            <p className="text-red">이번 카드값을 아직 입력하지 않았어요.</p>
+          ) : p.thisBill.remaining > 0 ? (
+            <p>
+              {shortDate(p.thisBill.dueDate)} 카드값 중 {formatWon(p.thisBill.remaining)}원이 아직 안 빠졌어요.
+            </p>
+          ) : (
+            <p>{shortDate(p.thisBill.dueDate)} 카드값은 이미 빠졌어요.</p>
+          )}
+          {p.fixedCard > 0 && <p>카드 고정지출 {formatWon(p.fixedCard)}원은 카드값에 들어 있어 따로 빼지 않아요.</p>}
+        </div>
       </Card>
+
+      <Link href="/card" className="rounded-card border border-line bg-white p-4 active:bg-tint" aria-label="다음 카드값">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm text-muted">
+            다음 카드값{p.nextBill.dueDate ? ` · ${shortDate(p.nextBill.dueDate)} 출금 예정` : ''}
+          </p>
+          <p className="text-lg font-bold">{formatWon(p.nextBill.amount)}원</p>
+        </div>
+        <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
+          {p.boughtTotal > 0 && <p>이번 주기에 산 {formatWon(p.boughtTotal)}원도 이 카드값에 들어가요.</p>}
+          <p>
+            다음 주기({range(p.nextStart, p.nextEnd)}) 예상 현금{' '}
+            <b className={p.nextCash < 0 ? 'text-red' : 'text-ink'}>{formatWon(p.nextCash)}원</b>
+          </p>
+        </div>
+      </Link>
 
       <Bucket
         highlight
@@ -108,8 +145,6 @@ export function HomeView(p: HomeViewProps) {
           </Link>
         </div>
       </BottomActions>
-
-      <CardBalanceSheet open={sheet !== null} onClose={closeSheet} current={p.cardBalance} confirmMode={sheet === 'confirm'} />
     </Screen>
   )
 }
@@ -117,7 +152,7 @@ export function HomeView(p: HomeViewProps) {
 function Term({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-muted">{label}</dt>
+      <dt className="truncate text-xs text-muted">{label}</dt>
       <dd className="mt-1 truncate text-sm font-bold">{value}</dd>
     </div>
   )

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clampDay, cycleFor, daysBetween, daysInMonth, daysLeft, isCutoffDay, nextCycle, prevYm, shortDate, timeKst, todayKst } from './cycle'
+import { cardDueDate, clampDay, cycleFor, daysBetween, daysInMonth, daysLeft, inCycle, isCutoffDay, nextCycle, prevYm, shortDate, timeKst, todayKst } from './cycle'
 
 describe('cycleFor', () => {
   it('월급일 5, 11/10 → 11/5~12/4 (30일)', () =>
@@ -54,4 +54,17 @@ describe('daysBetween / timeKst / shortDate', () => {
     expect(timeKst(new Date('2026-11-04T04:05:00Z'))).toBe('13:05')
   })
   it('shortDate 는 0 을 뗀 M/D', () => expect(shortDate('2026-11-05')).toBe('11/5'))
+})
+
+describe('inCycle / cardDueDate', () => {
+  const nov = cycleFor('2026-11-10', 5) // 11/5~12/4
+  it('시작·끝 포함', () => {
+    expect(inCycle('2026-11-05', nov)).toBe(true)
+    expect(inCycle('2026-12-04', nov)).toBe(true)
+    expect(inCycle('2026-12-05', nov)).toBe(false)
+  })
+  it('월급일 = 출금일이면 주기 첫날', () => expect(cardDueDate(nov, 5)).toBe('2026-11-05'))
+  it('출금일 15일', () => expect(cardDueDate(nov, 15)).toBe('2026-11-15'))
+  it('출금일 1일은 다음 달 1일이 주기 안', () => expect(cardDueDate(nov, 1)).toBe('2026-12-01'))
+  it('주기 안에 해당 날이 없으면 시작일', () => expect(cardDueDate(cycleFor('2026-02-10', 31), 30)).toBe('2026-01-31'))
 })

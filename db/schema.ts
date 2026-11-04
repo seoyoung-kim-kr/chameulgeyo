@@ -1,20 +1,23 @@
 import { sql } from 'drizzle-orm'
-import { check, index, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core'
+import { boolean, check, date, index, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core'
 
 // 금액은 전부 원 단위 정수(int4, 최대 약 21억).
 
-/** 단일 행(id = 1). 월급일·카드 확정일 설정. */
+/** 단일 행(id = 1). 월급일·카드 확정일·카드 출금일 설정. */
 export const settings = pgTable(
   'settings',
   {
     id: integer('id').primaryKey().default(1),
     payDay: integer('pay_day').notNull().default(5),
     cardCutoffDay: integer('card_cutoff_day').notNull().default(24),
+    /** 카드 대금 출금일. 새 대금의 기본 출금일 제안에만 쓴다 (실제 출금일은 card_bills.due_date) */
+    cardPayDay: integer('card_pay_day').notNull().default(5),
   },
   (t) => [
     check('settings_single_row', sql`${t.id} = 1`),
     check('settings_pay_day_range', sql`${t.payDay} between 1 and 31`),
     check('settings_cutoff_day_range', sql`${t.cardCutoffDay} between 1 and 31`),
+    check('settings_card_pay_day_range', sql`${t.cardPayDay} between 1 and 31`),
   ],
 )
 
@@ -25,10 +28,14 @@ export const months = pgTable(
     id: serial('id').primaryKey(),
     ym: varchar('ym', { length: 7 }).notNull().unique(),
     salary: integer('salary').notNull(),
+    /**
+     * (구) 카드 이용금액 한 숫자. 0001 마이그레이션에서 card_bills 로 옮겼고 계산에는 더 쓰지 않는다.
+     * 기존 데이터를 지우지 않으려고 남겨 둔다. 새로 저장할 때는 이 주기의 다음 대금 금액을 적어 둔다.
+     */
     cardBalance: integer('card_balance').notNull(),
-    /** 카드사 앱의 숫자를 옮겨 적은 시각. bought 가산으로는 바뀌지 않는다. */
+    /** (구) card_balance 를 옮겨 적은 시각. 계산에는 쓰지 않는다 (card_bills.updated_at 을 쓴다) */
     cardUpdatedAt: timestamp('card_updated_at', { withTimezone: true }).notNull().defaultNow(),
-    /** 카드 확정일에 옮겨 적은 확정 금액 */
+    /** (구) 카드 확정일에 옮겨 적은 확정 금액. 계산에는 쓰지 않는다 */
     cardConfirmedAmount: integer('card_confirmed_amount'),
     livingTarget: integer('living_target').notNull(),
     emergencyAmount: integer('emergency_amount').notNull(),
@@ -52,8 +59,38 @@ export const fixedExpenses = pgTable(
     name: varchar('name', { length: 40 }).notNull(),
     amount: integer('amount').notNull(),
     sort: integer('sort').notNull(),
+    /** 결제 수단. null = 미분류(기존 데이터). 계산에서는 계좌 출금으로 본다 (lib/cashflow.ts) */
+    paymentMethod: varchar('payment_method', { length: 7, enum: ['account', 'card'] }),
   },
-  (t) => [index('fixed_expenses_month_idx').on(t.monthId), check('fixed_expenses_amount_nonneg', sql`${t.amount} >= 0`)],
+  (t) => [
+    index('fixed_expenses_month_idx').on(t.monthId),
+    check('fixed_expenses_amount_nonneg', sql`${t.amount} >= 0`),
+    check('fixed_expenses_payment_method', sql`${t.paymentMethod} is null or ${t.paymentMethod} in ('account', 'card')`),
+  ],
+)
+
+/**
+ * 카드 대금. 실제 출금(예정)일 기준으로 어느 급여 주기의 현금에서 빠지는지 정한다 (사용월·청구월과 무관).
+ * 출금일 하나에 한 행. 앱에서 "산다"를 고르면 다음 주기 대금의 amount 에 더한다.
+ */
+export const cardBills = pgTable(
+  'card_bills',
+  {
+    id: serial('id').primaryKey(),
+    dueDate: date('due_date', { mode: 'string' }).notNull().unique(),
+    /** 청구(예정)액 */
+    amount: integer('amount').notNull(),
+    /** 이미 출금된 금액 */
+    paidAmount: integer('paid_amount').notNull().default(0),
+    /** 이 금액에 카드 고정지출이 이미 들어 있는지. false 면 계산에서 카드 고정지출을 한 번 더한다 */
+    includesCardFixed: boolean('includes_card_fixed').notNull().default(true),
+    /** 카드사 앱 숫자를 마지막으로 옮겨 적은 시각 ("산다" 가산으로는 바뀌지 않는다) */
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('card_bills_amount_nonneg', sql`${t.amount} >= 0`),
+    check('card_bills_paid_range', sql`${t.paidAmount} >= 0`),
+  ],
 )
 
 /** 판정 후 "안 산다 / 산다"를 고른 기록. id 는 클라이언트 nanoid (중복 = 재시도, 무시). */

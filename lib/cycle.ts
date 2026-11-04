@@ -113,3 +113,21 @@ export function shortDate(date: string): string {
   const { m, d } = parseDate(date)
   return `${m}/${d}`
 }
+
+/** 날짜가 주기 안(시작·끝 포함)인지 */
+export function inCycle(date: string, c: Cycle): boolean {
+  return date >= c.start && date <= c.end
+}
+
+/**
+ * 주기 안에서 카드 대금이 빠지는 날 (기본값 제안용). 주기가 걸친 두 달에서 카드 출금일(말일 클램프)을 찾는다.
+ * 주기 안에 해당 날이 없으면(예: 1/31~2/27 주기에 출금일 30일) 주기 시작일.
+ */
+export function cardDueDate(c: Cycle, cardPayDay: number): string {
+  const { y, m } = parseDate(c.start)
+  for (const ym of [toYm(y, m), toYm(y, m + 1)]) {
+    const date = `${ym}-${pad(clampDay(ym, cardPayDay))}`
+    if (inCycle(date, c)) return date
+  }
+  return c.start
+}

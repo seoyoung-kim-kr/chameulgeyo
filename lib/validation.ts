@@ -10,15 +10,22 @@ export const FIXED_NAME_MAX = 40
 const day = z.number().int().min(1).max(31)
 const amount = z.number().int().min(0).max(AMOUNT_MAX)
 
+/** 결제 수단. null = 미분류 (기존 데이터, 계좌 출금으로 계산) */
+const paymentMethod = z.enum(['account', 'card']).nullable()
+
 export const saveMonthSchema = z.object({
   payDay: day,
   cardCutoffDay: day,
+  cardPayDay: day,
   salary: amount,
-  cardBalance: amount,
+  /** 이번 주기에 출금되는(된) 카드 대금 */
+  thisBill: amount,
+  /** 다음 주기에 출금될 카드 대금 (카드 앱의 결제 예정 금액) */
+  nextBill: amount,
   livingTarget: amount,
   emergencyAmount: amount,
   fixed: z
-    .array(z.object({ name: z.string().trim().min(1).max(FIXED_NAME_MAX), amount }))
+    .array(z.object({ name: z.string().trim().min(1).max(FIXED_NAME_MAX), amount, method: paymentMethod }))
     .max(FIXED_MAX_COUNT),
 })
 
@@ -40,3 +47,13 @@ export const chooseSchema = z.object({
 })
 
 export type ChooseInput = z.input<typeof chooseSchema>
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+/** /card 저장. 이번 주기·다음 주기 대금 각 1건. 출금일이 그 주기 안인지는 서버가 주기를 계산해 확인한다 */
+export const saveCardBillsSchema = z.object({
+  thisBill: z.object({ dueDate: isoDate, amount, paid: z.boolean() }),
+  nextBill: z.object({ dueDate: isoDate, amount, includesCardFixed: z.boolean() }),
+})
+
+export type SaveCardBillsInput = z.infer<typeof saveCardBillsSchema>
