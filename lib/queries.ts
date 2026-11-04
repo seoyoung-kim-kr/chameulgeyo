@@ -117,7 +117,7 @@ export type History = {
   ym: string
   /** 아낀 돈(안 산 금액) 합계 (held 전체) */
   heldTotal: number
-  /** 그래도 산 돈 합계 (bought 전체) */
+  /** 그래도 산 돈 합계 (bought 중 환불·취소하지 않은 것) */
   boughtTotal: number
   /** 최신순 */
   items: DecisionRow[]
@@ -142,7 +142,7 @@ export async function getHistory(ym: string | undefined): Promise<History> {
   let boughtTotal = 0
   for (const d of items) {
     if (d.choice === 'held') heldTotal += d.price
-    else boughtTotal += d.price
+    else if (!d.canceledAt) boughtTotal += d.price
   }
   return { ym: target, heldTotal, boughtTotal, items }
 }

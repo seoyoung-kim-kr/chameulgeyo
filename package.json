@@ -13,7 +13,8 @@
     "db:smoke": "tsx --env-file=.env.local scripts/db-smoke.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
-    "db:check-choose": "tsx --env-file=.env.local scripts/choose-idempotency.ts"
+    "db:check-choose": "tsx --env-file=.env.local scripts/choose-idempotency.ts",
+    "db:check-cancel": "tsx --env-file=.env.local scripts/cancel-check.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

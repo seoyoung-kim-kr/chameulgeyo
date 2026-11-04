@@ -6,9 +6,9 @@ import { db } from '@/db'
 import { cardBills, decisions } from '@/db/schema'
 import type { ActionResult } from './action'
 import { decisionFor, type DecideResult, type JudgeContext } from './budget'
-import { cycleFor, statementDueDate, todayKst } from './cycle'
-import { readBills, readLedger, type Executor, type Ledger } from './ledger'
-import { chooseSchema, type ChooseInput } from './validation'
+import { cycleFor, refundPlan, statementDueDate, todayKst } from './cycle'
+import { DEFAULT_SETTINGS, readBills, readLedger, readSettings, type Executor, type Ledger } from './ledger'
+import { chooseSchema, decisionIdSchema, type ChooseInput } from './validation'
 
 async function loadJudgeContext(q: Executor, lock: boolean): Promise<{ ledger: Ledger; ctx: JudgeContext } | null> {
   const ledger = await readLedger(q, todayKst(), lock)
@@ -88,4 +88,53 @@ async function addToBill(q: Executor, ledger: Ledger, price: number): Promise<vo
     .insert(cardBills)
     .values({ dueDate: due, amount: price, includesCardFixed: false })
     .onConflictDoUpdate({ target: cardBills.dueDate, set: { amount: sql`${cardBills.amount} + ${price}` } })
+}
+
+export type CancelResult = {
+  /** 이미 취소한 기록이면 true (아무것도 바꾸지 않음) */
+  already: boolean
+  price: number
+  /** 환불액을 뺀 대금의 출금일 */
+  refundDue: string
+  beforeBilling: boolean
+}
+
+/**
+ * "산다" 기록 환불·취소. 기록은 지우지 않고 canceled_at 을 남긴다. 같은 id 로 여러 번 와도 한 번만 반영된다.
+ * - 원래 대금 출금 전: 그 대금에서 가격을 빼고, 쇼핑 예산·준비금에서도 빠진다 (구매가 없던 것처럼)
+ * - 원래 대금 출금 후: 원래 대금은 준비금으로 냈으므로 그대로 두고, 오늘 기준 다음 청구 대금에서 가격을 뺀다
+ *   (카드사 환불이 다음 청구에서 차감되는 것과 같다)
+ * 대금이 아직 없으면(카드 앱 숫자를 지운 경우 등) 대금은 건드리지 않는다.
+ */
+export async function cancelInternal(id: string): Promise<ActionResult<CancelResult>> {
+  if (!decisionIdSchema.safeParse(id).success) return { ok: false, error: 'INVALID' }
+
+  return db.transaction(async (tx) => {
+    const [d] = await tx.select().from(decisions).where(eq(decisions.id, id)).for('update')
+    if (!d) return { ok: false, error: 'NOT_FOUND' } as const
+    if (d.choice !== 'bought') return { ok: false, error: 'NOT_BOUGHT' } as const
+    if (d.canceledAt) {
+      return {
+        ok: true,
+        data: { already: true, price: d.price, refundDue: d.refundDueDate ?? '', beforeBilling: d.refundBeforeBilling ?? true },
+      } as const
+    }
+
+    const s = (await readSettings(tx)) ?? DEFAULT_SETTINGS
+    const plan = refundPlan(todayKst(d.decidedAt), todayKst(), s.cardCutoffDay, s.cardPayDay)
+    const target = cycleFor(plan.refundDue, s.payDay)
+    const [bill] = await readBills(tx, target.start, target.end)
+    if (bill) {
+      await tx
+        .update(cardBills)
+        .set({ amount: sql`greatest(${cardBills.amount} - ${d.price}, 0)` })
+        .where(eq(cardBills.id, bill.id))
+    }
+    await tx
+      .update(decisions)
+      .set({ canceledAt: new Date(), refundDueDate: plan.refundDue, refundBeforeBilling: plan.beforeBilling })
+      .where(eq(decisions.id, id))
+
+    return { ok: true, data: { already: false, price: d.price, refundDue: plan.refundDue, beforeBilling: plan.beforeBilling } } as const
+  })
 }

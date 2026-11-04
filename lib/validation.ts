@@ -34,8 +34,11 @@ export type SaveMonthInput = z.infer<typeof saveMonthSchema>
 export const DECISION_NAME_MAX = 60
 
 /** choose 입력. id 는 클라이언트 nanoid(21자, URL-safe) — 더블탭·재시도에 같은 id 가 온다. */
+/** 판정 기록 id (클라이언트 nanoid 21자) */
+export const decisionIdSchema = z.string().regex(/^[A-Za-z0-9_-]{21}$/)
+
 export const chooseSchema = z.object({
-  id: z.string().regex(/^[A-Za-z0-9_-]{21}$/),
+  id: decisionIdSchema,
   name: z
     .string()
     .trim()

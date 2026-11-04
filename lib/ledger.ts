@@ -2,7 +2,7 @@
 // - lib/queries.ts (화면 조회, requireSession 후 호출)
 // - lib/decisions.ts (판정·선택, 서버 액션 withSession 안에서 호출)
 // 계산 자체는 lib/cashflow.ts · lib/budget.ts 의 순수 함수가 한다.
-import { and, asc, eq, gte, lte } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull, lte, not, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { cardBills, decisions, fixedExpenses, months, settings } from '@/db/schema'
 import { computeBudget, type Budget } from './budget'
@@ -64,6 +64,12 @@ export type Ledger = {
   reserves: Reserve[]
 }
 
+/**
+ * 소비·준비금으로 계속 치는 기록: 취소 안 했거나, 원래 대금 출금 뒤에 환불한 것.
+ * (출금 뒤 환불은 원래 대금을 준비금으로 이미 냈으므로 그대로 두고, 환불은 다음 청구에서 빠진다)
+ */
+const stillConsumed = or(isNull(decisions.canceledAt), not(decisions.refundBeforeBilling))
+
 /** 준비금 계산에 볼 과거 구매 범위. 사용일 → 출금일은 길어야 두 달 남짓이다 */
 const RESERVE_LOOKBACK_DAYS = 100
 
@@ -82,7 +88,7 @@ export async function readLedger(q: Executor, today: string, lock = false): Prom
   const chosen = await q
     .select({ price: decisions.price, choice: decisions.choice })
     .from(decisions)
-    .where(eq(decisions.monthId, month.id))
+    .where(and(eq(decisions.monthId, month.id), stillConsumed))
   let boughtTotal = 0
   let heldTotal = 0
   for (const d of chosen) {
@@ -116,7 +122,7 @@ export async function readReserves(q: Executor, s: Settings, cycle: Cycle, next:
   const bought = await q
     .select({ price: decisions.price, decidedAt: decisions.decidedAt })
     .from(decisions)
-    .where(and(eq(decisions.choice, 'bought'), gte(decisions.decidedAt, since)))
+    .where(and(eq(decisions.choice, 'bought'), gte(decisions.decidedAt, since), stillConsumed))
   return bought
     .map((d) => ({ dueDate: statementDueDate(todayKst(d.decidedAt), s.cardCutoffDay, s.cardPayDay), amount: d.price }))
     .filter((r) => inCycle(r.dueDate, cycle) || inCycle(r.dueDate, next))

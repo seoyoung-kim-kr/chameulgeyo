@@ -109,9 +109,19 @@ export const decisions = pgTable(
     shoppingAvailableAt: integer('shopping_available_at').notNull(),
     overAmount: integer('over_amount').notNull(),
     decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+    /** 환불·취소한 시각 (bought 만). 기록은 지우지 않는다 */
+    canceledAt: timestamp('canceled_at', { withTimezone: true }),
+    /** 환불액을 뺀 카드 대금의 출금일 */
+    refundDueDate: date('refund_due_date', { mode: 'string' }),
+    /**
+     * true: 원래 대금 출금 전 취소 → 구매가 없던 것처럼 쇼핑 예산·준비금을 되돌린다
+     * false: 출금 후 환불 → 원래 대금은 준비금으로 냈으므로 그대로 두고, 환불은 다음 청구에서 빠진다
+     */
+    refundBeforeBilling: boolean('refund_before_billing'),
   },
   (t) => [
     index('decisions_month_idx').on(t.monthId),
+    check('decisions_cancel_bought_only', sql`${t.canceledAt} is null or ${t.choice} = 'bought'`),
     check('decisions_verdict', sql`${t.verdict} in ('red', 'green')`),
     check('decisions_choice', sql`${t.choice} in ('held', 'bought')`),
     check('decisions_price_range', sql`${t.price} between 1 and 100000000`),

@@ -40,6 +40,7 @@ async function HistoryLoader({ searchParams }: Pick<PageProps<'/history'>, 'sear
     choice: d.choice,
     overAmount: d.overAmount,
     date: shortDate(todayKst(d.decidedAt)),
+    refund: d.canceledAt ? { due: d.refundDueDate ? shortDate(d.refundDueDate) : null, beforeBilling: d.refundBeforeBilling ?? true } : null,
   }))
 
   return (

@@ -148,3 +148,22 @@ export function statementDueDate(date: string, cutoffDay: number, cardPayDay: nu
   const nextYm = toYm(ey, em + 1)
   return `${nextYm}-${pad(clampDay(nextYm, cardPayDay))}`
 }
+
+export type RefundPlan = {
+  /** 구매가 원래 들어간 대금의 출금일 */
+  originalDue: string
+  /** 환불액을 빼는 대금의 출금일 */
+  refundDue: string
+  /**
+   * true: 원래 대금이 아직 출금 전 → 그 대금에서 빼고, 구매가 없던 것처럼 되돌린다 (쇼핑 예산·준비금 원복)
+   * false: 원래 대금은 이미 출금됨(준비금으로 냄) → 환불은 오늘 기준 다음 청구에서 빠지는 돈으로 처리
+   */
+  beforeBilling: boolean
+}
+
+/** 카드 구매 환불·취소를 어느 대금에 반영할지. 출금일 당일 취소는 이미 출금된 것으로 본다. */
+export function refundPlan(purchaseDate: string, today: string, cutoffDay: number, cardPayDay: number): RefundPlan {
+  const originalDue = statementDueDate(purchaseDate, cutoffDay, cardPayDay)
+  const beforeBilling = originalDue > today
+  return { originalDue, refundDue: beforeBilling ? originalDue : statementDueDate(today, cutoffDay, cardPayDay), beforeBilling }
+}

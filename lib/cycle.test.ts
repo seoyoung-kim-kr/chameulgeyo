@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cardDueDate, clampDay, cycleFor, daysBetween, daysInMonth, daysLeft, inCycle, isCutoffDay, nextCycle, prevYm, shortDate, statementDueDate, timeKst, todayKst } from './cycle'
+import { cardDueDate, clampDay, cycleFor, daysBetween, daysInMonth, daysLeft, inCycle, isCutoffDay, nextCycle, prevYm, refundPlan, shortDate, statementDueDate, timeKst, todayKst } from './cycle'
 
 describe('cycleFor', () => {
   it('월급일 5, 11/10 → 11/5~12/4 (30일)', () =>
@@ -76,4 +76,17 @@ describe('statementDueDate (사용일 → 출금일)', () => {
   it('10/24 사용분이 11/5 에 빠진다 (검증용 데이터의 11/5 출금)', () => expect(statementDueDate('2026-10-24', 24, 5)).toBe('2026-11-05'))
   it('출금일이 확정일보다 뒤면 같은 달 (확정일 10·출금일 25)', () => expect(statementDueDate('2026-11-06', 10, 25)).toBe('2026-11-25'))
   it('말일 클램프 (1/31 사용, 확정일 30 → 2/28 확정 → 3/5)', () => expect(statementDueDate('2026-01-31', 30, 5)).toBe('2026-03-05'))
+})
+
+describe('refundPlan (확정일 24·출금일 5)', () => {
+  it('청구 전 취소: 11/10 구매 → 11/15 취소는 12/5 대금에서 빼고 원복', () =>
+    expect(refundPlan('2026-11-10', '2026-11-15', 24, 5)).toEqual({ originalDue: '2026-12-05', refundDue: '2026-12-05', beforeBilling: true }))
+  it('확정일 뒤 취소여도 원래 대금이 출금 전이면 청구 전', () =>
+    expect(refundPlan('2026-11-10', '2026-11-30', 24, 5)).toMatchObject({ refundDue: '2026-12-05', beforeBilling: true }))
+  it('출금 후 환불: 10/20 구매(11/5 출금) → 11/10 환불은 12/5 대금에서 차감', () =>
+    expect(refundPlan('2026-10-20', '2026-11-10', 24, 5)).toEqual({ originalDue: '2026-11-05', refundDue: '2026-12-05', beforeBilling: false }))
+  it('출금일 당일 환불은 이미 출금된 것으로', () =>
+    expect(refundPlan('2026-10-20', '2026-11-05', 24, 5)).toMatchObject({ beforeBilling: false, refundDue: '2026-12-05' }))
+  it('출금 후 확정일 뒤 환불은 그다음 대금', () =>
+    expect(refundPlan('2026-10-20', '2026-11-26', 24, 5)).toMatchObject({ beforeBilling: false, refundDue: '2027-01-05' }))
 })
