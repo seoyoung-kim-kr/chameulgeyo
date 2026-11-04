@@ -6,7 +6,7 @@ import { db } from '@/db'
 import { cardBills, decisions } from '@/db/schema'
 import type { ActionResult } from './action'
 import { decisionFor, type DecideResult, type JudgeContext } from './budget'
-import { cardDueDate, todayKst } from './cycle'
+import { cycleFor, statementDueDate, todayKst } from './cycle'
 import { readBills, readLedger, type Executor, type Ledger } from './ledger'
 import { chooseSchema, type ChooseInput } from './validation'
 
@@ -29,8 +29,9 @@ export async function decideInternal(price: number): Promise<ActionResult<Decide
  * - 같은 id 가 다시 오면(더블탭·재시도) 아무것도 바꾸지 않고 duplicated: true
  * - bought 이고 실제로 삽입됐을 때만:
  *   · 소비: decisions 에 남아 이번 주기 쇼핑 예산에서 빠진다 (ledger 의 boughtTotal)
- *   · 현금: 다음 주기 카드 대금(card_bills)에 더한다 → 다음 주기 예상 현금에서 빠진다
- *   이번 주기 현금(cash)에는 들어가지 않는다. updated_at 은 건드리지 않는다
+ *   · 현금: 이 구매가 들어갈 카드 대금(오늘 기준 확정일·출금일로 계산)에 더한다.
+ *     이미 소비 예산에서 뺐으므로 준비금으로 보고, 그 대금이 출금되는 주기 현금에서는 다시 빼지 않는다 (lib/cashflow.ts)
+ *   updated_at 은 건드리지 않는다
  *   (카드사 숫자를 옮겨 적은 시각만 뜻한다. 다음에 카드 앱 숫자로 덮어쓰면 중복이 풀린다)
  */
 export async function chooseInternal(input: ChooseInput): Promise<ActionResult<{ duplicated: boolean }>> {
@@ -61,14 +62,21 @@ export async function chooseInternal(input: ChooseInput): Promise<ActionResult<{
 
     if (inserted.length === 0) return { ok: true, data: { duplicated: true } } as const
 
-    if (v.choice === 'bought') await addToNextBill(tx, ledger, v.price)
+    if (v.choice === 'bought') await addToBill(tx, ledger, v.price)
     return { ok: true, data: { duplicated: false } } as const
   })
 }
 
-/** 다음 주기 대금에 금액을 더한다. 아직 없으면 기본 출금일로 만든다 (카드 고정지출은 아직 안 들어 있음). */
-async function addToNextBill(q: Executor, ledger: Ledger, price: number): Promise<void> {
-  const [bill] = await readBills(q, ledger.next.start, ledger.next.end)
+/**
+ * 이 구매가 들어갈 대금에 금액을 더한다. 확정일까지 쓴 것은 다음 출금일, 그 뒤는 그다음 출금일 대금이다.
+ * 그 출금일이 속한 급여 주기에 대금이 이미 있으면 거기에 더하고, 없으면 그 날짜로 만든다
+ * (카드 고정지출은 아직 안 들어 있다고 본다).
+ */
+async function addToBill(q: Executor, ledger: Ledger, price: number): Promise<void> {
+  const { payDay, cardCutoffDay, cardPayDay } = ledger.settings
+  const due = statementDueDate(todayKst(), cardCutoffDay, cardPayDay)
+  const target = cycleFor(due, payDay)
+  const [bill] = await readBills(q, target.start, target.end)
   if (bill) {
     await q
       .update(cardBills)
@@ -78,6 +86,6 @@ async function addToNextBill(q: Executor, ledger: Ledger, price: number): Promis
   }
   await q
     .insert(cardBills)
-    .values({ dueDate: cardDueDate(ledger.next, ledger.settings.cardPayDay), amount: price, includesCardFixed: false })
+    .values({ dueDate: due, amount: price, includesCardFixed: false })
     .onConflictDoUpdate({ target: cardBills.dueDate, set: { amount: sql`${cardBills.amount} + ${price}` } })
 }

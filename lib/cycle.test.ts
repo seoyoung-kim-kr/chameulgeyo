@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cardDueDate, clampDay, cycleFor, daysBetween, daysInMonth, daysLeft, inCycle, isCutoffDay, nextCycle, prevYm, shortDate, timeKst, todayKst } from './cycle'
+import { cardDueDate, clampDay, cycleFor, daysBetween, daysInMonth, daysLeft, inCycle, isCutoffDay, nextCycle, prevYm, shortDate, statementDueDate, timeKst, todayKst } from './cycle'
 
 describe('cycleFor', () => {
   it('월급일 5, 11/10 → 11/5~12/4 (30일)', () =>
@@ -67,4 +67,13 @@ describe('inCycle / cardDueDate', () => {
   it('출금일 15일', () => expect(cardDueDate(nov, 15)).toBe('2026-11-15'))
   it('출금일 1일은 다음 달 1일이 주기 안', () => expect(cardDueDate(nov, 1)).toBe('2026-12-01'))
   it('주기 안에 해당 날이 없으면 시작일', () => expect(cardDueDate(cycleFor('2026-02-10', 31), 30)).toBe('2026-01-31'))
+})
+
+describe('statementDueDate (사용일 → 출금일)', () => {
+  it('확정일 24·출금일 5: 11/10 사용은 12/5', () => expect(statementDueDate('2026-11-10', 24, 5)).toBe('2026-12-05'))
+  it('확정일 당일 사용은 그 청구서', () => expect(statementDueDate('2026-11-24', 24, 5)).toBe('2026-12-05'))
+  it('확정일 다음 날 사용은 한 달 뒤', () => expect(statementDueDate('2026-11-25', 24, 5)).toBe('2027-01-05'))
+  it('10/24 사용분이 11/5 에 빠진다 (검증용 데이터의 11/5 출금)', () => expect(statementDueDate('2026-10-24', 24, 5)).toBe('2026-11-05'))
+  it('출금일이 확정일보다 뒤면 같은 달 (확정일 10·출금일 25)', () => expect(statementDueDate('2026-11-06', 10, 25)).toBe('2026-11-25'))
+  it('말일 클램프 (1/31 사용, 확정일 30 → 2/28 확정 → 3/5)', () => expect(statementDueDate('2026-01-31', 30, 5)).toBe('2026-03-05'))
 })

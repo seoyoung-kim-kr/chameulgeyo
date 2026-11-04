@@ -21,8 +21,8 @@ export type HomeViewProps = {
   /** 카드로 결제하는 고정지출 (카드값에 들어 있어 따로 빼지 않음) */
   fixedCard: number
   unclassifiedCount: number
-  thisBill: { dueDate: string | null; amount: number; paid: number; remaining: number }
-  nextBill: { dueDate: string | null; amount: number }
+  thisBill: { dueDate: string | null; amount: number; reserved: number; fromCash: number; paid: number; remaining: number }
+  nextBill: { dueDate: string | null; amount: number; reserved: number; fromCash: number }
   nextBillStaleDays: number | null
   isCutoff: boolean
   /** 이번 주기에 쓸 수 있는 돈 (현금) */
@@ -84,7 +84,7 @@ export function HomeView(p: HomeViewProps) {
         <dl className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-tint p-3 text-center">
           <Term label="월급" value={formatWon(p.salary)} />
           <Term label="계좌 고정지출" value={`−${formatWon(p.fixedCashOut)}`} />
-          <Term label={p.thisBill.dueDate ? `카드값 ${shortDate(p.thisBill.dueDate)}` : '이번 카드값'} value={`−${formatWon(p.thisBill.amount)}`} />
+          <Term label={p.thisBill.dueDate ? `카드값 ${shortDate(p.thisBill.dueDate)}` : '이번 카드값'} value={`−${formatWon(p.thisBill.fromCash)}`} />
         </dl>
         <div className="mt-3 flex flex-col gap-1 text-xs text-muted">
           {p.thisBill.dueDate === null ? (
@@ -95,6 +95,11 @@ export function HomeView(p: HomeViewProps) {
             </p>
           ) : (
             <p>{shortDate(p.thisBill.dueDate)} 카드값은 이미 빠졌어요.</p>
+          )}
+          {p.thisBill.reserved > 0 && (
+            <p>
+              카드값 {formatWon(p.thisBill.amount)}원 중 {formatWon(p.thisBill.reserved)}원은 지난 주기에 준비해 둔 돈으로 내요.
+            </p>
           )}
           {p.fixedCard > 0 && <p>카드 고정지출 {formatWon(p.fixedCard)}원은 카드값에 들어 있어 따로 빼지 않아요.</p>}
         </div>
@@ -107,8 +112,14 @@ export function HomeView(p: HomeViewProps) {
           </p>
           <p className="text-lg font-bold">{formatWon(p.nextBill.amount)}원</p>
         </div>
+        {p.nextBill.reserved > 0 && (
+          <dl className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-tint p-3 text-center">
+            <Term label="카드 결제 준비금" value={formatWon(p.nextBill.reserved)} />
+            <Term label="다음 월급에서" value={formatWon(p.nextBill.fromCash)} />
+          </dl>
+        )}
         <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
-          {p.boughtTotal > 0 && <p>이번 주기에 산 {formatWon(p.boughtTotal)}원도 이 카드값에 들어가요.</p>}
+          {p.nextBill.reserved > 0 && <p>준비금은 이번 주기에 산 것으로, 이미 쇼핑 예산에서 뺐어요.</p>}
           <p>
             다음 주기({range(p.nextStart, p.nextEnd)}) 예상 현금{' '}
             <b className={p.nextCash < 0 ? 'text-red' : 'text-ink'}>{formatWon(p.nextCash)}원</b>

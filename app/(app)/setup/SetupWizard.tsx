@@ -9,7 +9,7 @@ import { Chip } from '@/components/Chip'
 import { Field, MoneyInput, TextInput } from '@/components/Field'
 import { BottomActions, Card, Message, Screen } from '@/components/Screen'
 import { computeBudget } from '@/lib/budget'
-import { computeCashflow, type PaymentMethod } from '@/lib/cashflow'
+import { computeCashflow, type PaymentMethod, type Reserve } from '@/lib/cashflow'
 import { cardDueDate, cycleFor, nextCycle, shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { FIXED_MAX_COUNT, FIXED_NAME_MAX, type SaveMonthInput } from '@/lib/validation'
@@ -21,6 +21,8 @@ type Props = {
   /** 이미 저장된 대금의 출금일 (없으면 카드 출금일로 계산) */
   thisBillDue: string | null
   nextBillDue: string | null
+  /** 카드 결제 준비금 (이미 예산에서 뺀 카드 구매) */
+  reserves: Reserve[]
   /** 처음 쓰는 경우에만 날짜 단계부터 시작한다 */
   isFirst: boolean
 }
@@ -37,7 +39,7 @@ const ERRORS: Record<string, string> = {
   DB: '저장하지 못했어요.\n잠시 후 다시 시도해 주세요.',
 }
 
-export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, isFirst }: Props) {
+export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserves, isFirst }: Props) {
   const router = useRouter()
   const firstStep: Step = isFirst ? 1 : 2
   const [step, setStep] = useState<Step>(firstStep)
@@ -70,6 +72,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, isFirst
     ],
     cycle,
     nextCycle: next,
+    reserves,
   })
   const budget = computeBudget({ cash: cashflow.cash, livingTarget, emergencyAmount, spentShopping: 0, cycleDays: cycle.days })
   const unclassified = fixed.filter((f) => (f.name.trim() !== '' || f.amount > 0) && f.method === null).length

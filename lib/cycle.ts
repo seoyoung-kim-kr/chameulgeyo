@@ -131,3 +131,20 @@ export function cardDueDate(c: Cycle, cardPayDay: number): string {
   }
   return c.start
 }
+
+/**
+ * 카드 사용일 → 그 사용분이 출금되는 날.
+ * 확정일(cutoffDay)까지 쓴 것이 한 청구서로 묶이고, 그 확정일 다음에 오는 첫 출금일(cardPayDay)에 빠진다.
+ * 예: 확정일 24·출금일 5 → 11/10 사용은 12/5, 11/26 사용은 1/5 출금.
+ */
+export function statementDueDate(date: string, cutoffDay: number, cardPayDay: number): string {
+  const { y, m, d } = parseDate(date)
+  const ym = toYm(y, m)
+  const endYm = d <= clampDay(ym, cutoffDay) ? ym : toYm(y, m + 1)
+  const end = `${endYm}-${pad(clampDay(endYm, cutoffDay))}`
+  const sameMonth = `${endYm}-${pad(clampDay(endYm, cardPayDay))}`
+  if (sameMonth > end) return sameMonth
+  const { y: ey, m: em } = parseYm(endYm)
+  const nextYm = toYm(ey, em + 1)
+  return `${nextYm}-${pad(clampDay(nextYm, cardPayDay))}`
+}

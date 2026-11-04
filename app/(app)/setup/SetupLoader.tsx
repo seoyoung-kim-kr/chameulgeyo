@@ -4,7 +4,7 @@ import { SetupWizard } from './SetupWizard'
 
 // /setup 과, 이번 주기 설정이 없을 때의 홈(/)이 함께 쓴다. 세션·DB 를 읽으므로 <Suspense> 안에 둔다.
 export async function SetupLoader() {
-  const { settings, today, current, previous, thisBill, nextBill } = await getSetupDefaults()
+  const { settings, today, current, previous, thisBill, nextBill, reserves } = await getSetupDefaults()
   const defaults = toDefaults(settings, current, previous, thisBill, nextBill)
   // 저장 후 서버 값이 바뀌면 마법사를 새로 마운트해 입력 상태를 서버 값과 맞춘다
   return (
@@ -14,6 +14,7 @@ export async function SetupLoader() {
       today={today}
       thisBillDue={thisBill?.dueDate ?? null}
       nextBillDue={nextBill?.dueDate ?? null}
+      reserves={reserves}
       isFirst={!current && !previous}
     />
   )

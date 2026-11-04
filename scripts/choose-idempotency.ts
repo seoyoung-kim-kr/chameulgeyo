@@ -1,6 +1,7 @@
 // Review Focus 3: "그래도 산다" 더블탭. 같은 id 로 choose 가 여러 번 와도 한 번만 반영된다.
 // - 다음 주기 카드 대금은 가격만큼 한 번만 오른다 (현금은 출금되는 주기에 빠진다)
 // - 이번 주기 현금(cash)은 그대로, 쇼핑 예산은 가격만큼 한 번만 준다 (소비)
+// - 다음 주기 예상 현금도 그대로다 (준비금으로 내므로 다시 빼지 않는다)
 // 세션을 우회해 chooseInternal 을 직접 부른다. 끝나면 만든 기록과 대금을 되돌린다.
 // 실행: npm run db:check-choose (dev DB 에서만. 이번 주기 월 설정이 있어야 한다)
 import { eq, inArray } from 'drizzle-orm'
@@ -39,6 +40,7 @@ async function main() {
     check(mid.nextAmount - before.nextAmount === PRICE, `순차 2회 → 다음 카드값 +${PRICE} 한 번만`)
     check(mid.ledger.cashflow.cash === before.ledger.cashflow.cash, '이번 주기 현금은 그대로')
     check(before.ledger.budget.shoppingRaw - mid.ledger.budget.shoppingRaw === PRICE, `쇼핑 예산 −${PRICE} 한 번만`)
+    check(mid.ledger.cashflow.nextCash === before.ledger.cashflow.nextCash, '다음 주기 예상 현금도 그대로 (준비금)')
 
     // 2) 동시 더블탭: 같은 id 두 요청이 겹쳐 도착
     const [c, d] = await Promise.all([
@@ -49,6 +51,7 @@ async function main() {
     check(c.ok && d.ok && dup === 1, '동시 2회 → 하나만 삽입, 하나는 duplicated')
     const after = await snapshot()
     check(after.nextAmount - mid.nextAmount === PRICE, `동시 2회 → 다음 카드값 +${PRICE} 한 번만`)
+    check(after.ledger.cashflow.nextCash === before.ledger.cashflow.nextCash, '동시 2회 뒤에도 다음 주기 예상 현금 그대로')
 
     const rows = await db.select().from(decisions).where(inArray(decisions.id, ids))
     check(rows.length === 2, 'decisions 행은 id 당 1개')

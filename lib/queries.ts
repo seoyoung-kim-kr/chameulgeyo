@@ -3,7 +3,8 @@ import { desc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { decisions, months, settings } from '@/db/schema'
 import { cycleFor, daysBetween, isCutoffDay, nextCycle, prevYm, todayKst, type Cycle } from './cycle'
-import { DEFAULT_SETTINGS, readBills, readLedger, readMonth, readSettings, type CardBillRow, type Ledger, type MonthRow, type Settings } from './ledger'
+import type { Reserve } from './cashflow'
+import { DEFAULT_SETTINGS, readBills, readLedger, readMonth, readReserves, readSettings, type CardBillRow, type Ledger, type MonthRow, type Settings } from './ledger'
 import { requireSession } from './session'
 
 // 화면용 조회 함수. 전부 첫 줄에서 requireSession() 을 부른다 (proxy 는 낙관적 검사일 뿐).
@@ -50,13 +51,15 @@ export async function getSetupDefaults(): Promise<{
   previous: MonthRow | null
   thisBill: CardBillRow | null
   nextBill: CardBillRow | null
+  reserves: Reserve[]
 }> {
   const { settings: s, cycle, next, today } = await getCurrentCycle()
   const current = await readMonth(db, cycle.ym)
   const previous = current ? null : await readMonth(db, prevYm(cycle.ym))
   const [thisBill = null] = await readBills(db, cycle.start, cycle.end)
   const [nextBill = null] = await readBills(db, next.start, next.end)
-  return { settings: s, cycle, next, today, current, previous, thisBill, nextBill }
+  const reserves = await readReserves(db, s, cycle, next)
+  return { settings: s, cycle, next, today, current, previous, thisBill, nextBill, reserves }
 }
 
 export type HomeData = Ledger & {

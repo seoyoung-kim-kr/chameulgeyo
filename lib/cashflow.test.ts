@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { billCashAmount, computeCashflow, splitFixed, summarizeBills, type CardBill, type FixedItem } from './cashflow'
+import { billCashAmount, computeCashflow, splitFixed, summarizeBills, type CardBill, type FixedItem, type Reserve } from './cashflow'
 import { cycleFor, nextCycle } from './cycle'
 
 const cycle = cycleFor('2026-11-10', 5) // 11/5 ~ 12/4
@@ -58,7 +58,7 @@ describe('카드 대금이 다음 급여 주기에 출금되는 경우', () => {
     const withDec = run([{ amount: 1_500_315, method: 'account' }])
     const withoutDec = run([{ amount: 1_500_315, method: 'account' }], [NOV_BILL])
     expect(withDec.cash).toBe(withoutDec.cash)
-    expect(withDec.nextBill).toEqual({ dueDate: '2026-12-05', amount: 772_358, paid: 0, remaining: 772_358 })
+    expect(withDec.nextBill).toEqual({ dueDate: '2026-12-05', amount: 772_358, reserved: 0, fromCash: 772_358, paid: 0, remaining: 772_358 })
   })
 })
 
@@ -105,4 +105,41 @@ describe('기존 데이터 (결제 수단 없음)', () => {
 describe('billCashAmount', () => {
   it('포함됨이면 그대로', () => expect(billCashAmount(bill('2026-11-05', 100), 30)).toBe(100))
   it('미포함이면 카드 고정지출을 더한다', () => expect(billCashAmount(bill('2026-11-05', 100, { includesCardFixed: false }), 30)).toBe(130))
+})
+
+describe('카드 결제 준비금 (이미 소비 예산에서 뺀 카드 구매는 대금 출금 때 다시 빼지 않는다)', () => {
+  const fixed: FixedItem[] = [{ amount: 1_500_315, method: 'account' }]
+  const runR = (bills: CardBill[], reserves: Reserve[]) =>
+    computeCashflow({ salary: SALARY, fixed, bills, cycle, nextCycle: next, reserves })
+
+  it('11/10 에 산 50,000원(12/5 출금)은 다음 주기 예상 현금에서 다시 빠지지 않는다', () => {
+    const r = runR([NOV_BILL, bill('2026-12-05', 822_358)], [{ dueDate: '2026-12-05', amount: 50_000 }])
+    expect(r.nextBill).toMatchObject({ amount: 822_358, reserved: 50_000, fromCash: 772_358 })
+    expect(r.nextCash).toBe(702_571) // 산 것이 없을 때와 같다
+    expect(r.cash).toBe(449_945)
+  })
+
+  it('확정일 뒤에 산 것(1/5 출금)은 12/5 대금과 무관', () => {
+    const r = runR([NOV_BILL, DEC_BILL], [{ dueDate: '2027-01-05', amount: 50_000 }])
+    expect(r.nextBill).toMatchObject({ reserved: 0, fromCash: 772_358 })
+  })
+
+  it('지난 주기에 준비해 둔 구매가 이번 대금에 들어 있으면 이번 현금에서 그만큼 덜 뺀다', () => {
+    const r = runR([NOV_BILL, DEC_BILL], [{ dueDate: '2026-11-05', amount: 100_000 }])
+    expect(r.thisBill).toMatchObject({ amount: 1_024_984, reserved: 100_000, fromCash: 924_984 })
+    expect(r.cash).toBe(549_945)
+  })
+
+  it('같은 주기 안에 출금되는 구매도 한 번만 (확정일 10·출금일 25 같은 카드)', () => {
+    const r = runR([bill('2026-11-25', 300_000)], [{ dueDate: '2026-11-25', amount: 50_000 }])
+    expect(r.cash).toBe(SALARY - 1_500_315 - 250_000)
+  })
+
+  it('준비금이 대금보다 크면(카드 앱 숫자로 낮춰 적음) 현금에서 0 을 뺀다', () => {
+    const r = runR([bill('2026-12-05', 30_000)], [{ dueDate: '2026-12-05', amount: 50_000 }])
+    expect(r.nextBill).toMatchObject({ reserved: 30_000, fromCash: 0 })
+  })
+
+  it('11월 첫 전환: 준비금이 없으면 11/5 대금은 전액 이번 월급에서 (기존 카드 대금 정리)', () =>
+    expect(runR([NOV_BILL, DEC_BILL], []).cash).toBe(449_945))
 })

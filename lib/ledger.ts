@@ -6,8 +6,8 @@ import { and, asc, eq, gte, lte } from 'drizzle-orm'
 import { db } from '@/db'
 import { cardBills, decisions, fixedExpenses, months, settings } from '@/db/schema'
 import { computeBudget, type Budget } from './budget'
-import { computeCashflow, type CardBill, type Cashflow } from './cashflow'
-import { cycleFor, nextCycle, type Cycle } from './cycle'
+import { computeCashflow, type CardBill, type Cashflow, type Reserve } from './cashflow'
+import { cycleFor, inCycle, nextCycle, statementDueDate, todayKst, type Cycle } from './cycle'
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 export type Executor = typeof db | Tx
@@ -60,7 +60,12 @@ export type Ledger = {
   boughtTotal: number
   /** 이번 주기에 "안 산다"로 기록한 금액 합 */
   heldTotal: number
+  /** 이번·다음 주기 대금에 들어갈 카드 결제 준비금 (앱에서 산 것, 출금일 기준) */
+  reserves: Reserve[]
 }
+
+/** 준비금 계산에 볼 과거 구매 범위. 사용일 → 출금일은 길어야 두 달 남짓이다 */
+const RESERVE_LOOKBACK_DAYS = 100
 
 /**
  * today 가 속한 주기의 장부. 이번 주기 설정(months)이 없으면 null.
@@ -85,12 +90,15 @@ export async function readLedger(q: Executor, today: string, lock = false): Prom
     else heldTotal += d.price
   }
 
+  const reserves = await readReserves(q, s, cycle, next)
+
   const cashflow = computeCashflow({
     salary: month.salary,
     fixed: month.fixed.map((f) => ({ amount: f.amount, method: f.paymentMethod })),
     bills: bills.map(toCardBill),
     cycle,
     nextCycle: next,
+    reserves,
   })
   const budget = computeBudget({
     cash: cashflow.cash,
@@ -99,5 +107,17 @@ export async function readLedger(q: Executor, today: string, lock = false): Prom
     spentShopping: boughtTotal,
     cycleDays: cycle.days,
   })
-  return { settings: s, cycle, next, month, bills, cashflow, budget, boughtTotal, heldTotal }
+  return { settings: s, cycle, next, month, bills, cashflow, budget, boughtTotal, heldTotal, reserves }
+}
+
+/** 카드 결제 준비금: 지난 주기에 산 것까지 포함해, 이번·다음 주기에 출금될 "산다" 구매만 고른다 */
+export async function readReserves(q: Executor, s: Settings, cycle: Cycle, next: Cycle): Promise<Reserve[]> {
+  const since = new Date(Date.now() - RESERVE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+  const bought = await q
+    .select({ price: decisions.price, decidedAt: decisions.decidedAt })
+    .from(decisions)
+    .where(and(eq(decisions.choice, 'bought'), gte(decisions.decidedAt, since)))
+  return bought
+    .map((d) => ({ dueDate: statementDueDate(todayKst(d.decidedAt), s.cardCutoffDay, s.cardPayDay), amount: d.price }))
+    .filter((r) => inCycle(r.dueDate, cycle) || inCycle(r.dueDate, next))
 }

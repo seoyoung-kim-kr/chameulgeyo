@@ -9,6 +9,7 @@ import { upsertCycleBill } from '@/lib/bills'
 import { computeBudget } from '@/lib/budget'
 import { computeCashflow } from '@/lib/cashflow'
 import { cardDueDate, cycleFor, nextCycle, todayKst } from '@/lib/cycle'
+import { readReserves } from '@/lib/ledger'
 import { saveMonthSchema, type SaveMonthInput } from '@/lib/validation'
 
 /**
@@ -44,12 +45,14 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
         await upsertCycleBill(tx, next, cardDueDate(next, v.cardPayDay), { amount: v.nextBill })
 
         // 쇼핑 예산 스냅샷: 이번 주기 현금에서 생활비·비상금을 뺀 값 (산 것은 아직 없다고 본다)
+        const reserves = await readReserves(tx, { payDay: v.payDay, cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay }, cycle, next)
         const { cash } = computeCashflow({
           salary: v.salary,
           fixed: v.fixed.map((f) => ({ amount: f.amount, method: f.method })),
           bills: [{ dueDate: cycle.start, amount: v.thisBill, paidAmount: 0, includesCardFixed: true }],
           cycle,
           nextCycle: next,
+          reserves,
         })
         const { shopping } = computeBudget({
           cash,
