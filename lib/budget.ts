@@ -88,3 +88,26 @@ export function judge(price: number, ctx: JudgeContext): Verdict {
 export function isValidPrice(n: unknown): n is number {
   return typeof n === 'number' && Number.isInteger(n) && n >= PRICE_MIN && n <= PRICE_MAX
 }
+
+/** 판정 화면에 필요한 값 전부. 클라이언트 미리보기와 서버 decide 가 같은 함수로 만든다. */
+export type DecideResult = Verdict & {
+  price: number
+  /** 판정 시점 쇼핑 가능액 (표시값, 0 이상) */
+  shopping: number
+  /** 사기 전 실제 남은 생활비 (쇼핑 예산이 음수면 목표보다 적다) */
+  livingNow: number
+  /** 사기 전 하루 생활비 */
+  livingPerDay: number
+}
+
+export function decisionFor(price: number, ctx: JudgeContext): DecideResult {
+  const shopping = Math.max(ctx.shoppingRaw, 0)
+  const livingNow = ctx.livingTarget + Math.min(ctx.shoppingRaw, 0)
+  return {
+    ...judge(price, ctx),
+    price,
+    shopping,
+    livingNow,
+    livingPerDay: Math.floor(livingNow / ctx.cycleDays),
+  }
+}

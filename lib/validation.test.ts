@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { saveMonthSchema } from './validation'
+import { chooseSchema, saveMonthSchema } from './validation'
 
 const valid = {
   payDay: 5,
@@ -34,4 +34,19 @@ describe('saveMonthSchema', () => {
   it('fixed 31개 실패', () => fails({ fixed: Array.from({ length: 31 }, (_, i) => ({ name: `항목${i}`, amount: 1 })) }))
   it('fixed 30개 통과', () =>
     expect(saveMonthSchema.safeParse({ ...valid, fixed: Array.from({ length: 30 }, (_, i) => ({ name: `항목${i}`, amount: 1 })) }).success).toBe(true))
+})
+
+describe('chooseSchema', () => {
+  const ok = { id: 'V1StGXR8_Z5jdHi6B-myT', name: '코트', price: 189_000, choice: 'held' as const }
+  const bad = (patch: object) => expect(chooseSchema.safeParse({ ...ok, ...patch }).success).toBe(false)
+  it('정상 입력 통과', () => expect(chooseSchema.parse(ok)).toEqual(ok))
+  it('이름 없음(null) 통과', () => expect(chooseSchema.parse({ ...ok, name: null }).name).toBeNull())
+  it('공백 이름은 null 로', () => expect(chooseSchema.parse({ ...ok, name: '   ' }).name).toBeNull())
+  it('이름 61자 실패', () => bad({ name: 'a'.repeat(61) }))
+  it('id 20자 실패', () => bad({ id: 'a'.repeat(20) }))
+  it('id 허용 외 문자 실패', () => bad({ id: 'a'.repeat(20) + '!' }))
+  it('가격 0 실패', () => bad({ price: 0 }))
+  it('가격 1억 초과 실패', () => bad({ price: 100_000_001 }))
+  it('가격 소수 실패', () => bad({ price: 1.5 }))
+  it('choice 이상값 실패', () => bad({ choice: 'maybe' }))
 })

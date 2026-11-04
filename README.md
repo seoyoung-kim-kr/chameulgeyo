@@ -19,6 +19,7 @@ npm run dev
 | `npm run db:generate` | `db/schema.ts` 변경을 `drizzle/` 마이그레이션 SQL로 생성 |
 | `npm run db:migrate` | 마이그레이션을 DB에 적용 (이미 적용된 것은 건너뜀) |
 | `npm run db:smoke` | DB 연결·트랜잭션 확인 |
+| `npm run db:check-choose` | 같은 id 로 "그래도 산다"를 여러 번(순차·동시) 보내도 카드값이 한 번만 오르는지 확인. dev DB 전용, 끝나면 되돌림 |
 
 ## 배포 시 DB 마이그레이션
 

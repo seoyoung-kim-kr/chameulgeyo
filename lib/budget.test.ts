@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeBudget, isValidPrice, judge } from './budget'
+import { computeBudget, decisionFor, isValidPrice, judge } from './budget'
 
 // 기획서 UI 시안 숫자
 const base = { salary: 2_800_000, fixedTotal: 1_350_000, cardBalance: 912_000, livingTarget: 360_000, emergencyAmount: 30_000, cycleDays: 30 }
@@ -86,4 +86,29 @@ describe('isValidPrice', () => {
     [Infinity, false],
     [null, false],
   ])('%s → %s', (v, ok) => expect(isValidPrice(v)).toBe(ok))
+})
+
+describe('decisionFor', () => {
+  const ctx = { shoppingRaw: 148_000, livingTarget: 360_000, cycleDays: 30 }
+  it('시안 숫자 189,000 → 빨강, 사기 전·후 생활비', () =>
+    expect(decisionFor(189_000, ctx)).toEqual({
+      verdict: 'red',
+      overAmount: 41_000,
+      livingAfter: 319_000,
+      livingAfterPerDay: 10_633,
+      shoppingAfter: 0,
+      livingExhausted: false,
+      price: 189_000,
+      shopping: 148_000,
+      livingNow: 360_000,
+      livingPerDay: 12_000,
+    }))
+  it('59,000 → 초록, 사고 나면 89,000', () => expect(decisionFor(59_000, ctx)).toMatchObject({ verdict: 'green', shoppingAfter: 89_000 }))
+  it('쇼핑 예산 음수면 표시 0, 사기 전 생활비가 이미 깎여 있다', () =>
+    expect(decisionFor(1, { ...ctx, shoppingRaw: -140_000 })).toMatchObject({
+      verdict: 'red',
+      shopping: 0,
+      livingNow: 220_000,
+      livingAfter: 219_999,
+    }))
 })
