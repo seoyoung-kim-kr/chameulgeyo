@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, sum } from 'drizzle-orm'
+import { and, asc, desc, eq, sum } from 'drizzle-orm'
 import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { decisions, fixedExpenses, months, settings } from '@/db/schema'
@@ -104,4 +104,47 @@ export async function getHomeData(): Promise<HomeData> {
     isCutoff: isCutoffDay(today, s.cardCutoffDay),
     cardStaleDays: Math.max(daysBetween(todayKst(month.cardUpdatedAt), today), 0),
   }
+}
+
+export type DecisionRow = typeof decisions.$inferSelect
+
+export type History = {
+  ym: string
+  /** 참은 돈 합계 (held 전체) */
+  heldTotal: number
+  /** 그래도 산 돈 합계 (bought 전체) */
+  boughtTotal: number
+  /** 최신순 */
+  items: DecisionRow[]
+}
+
+const YM_RE = /^[0-9]{4}-(0[1-9]|1[0-2])$/
+
+/**
+ * 한 주기의 판정 기록. ym 이 없거나 형식이 틀리면 현재 주기.
+ * 합계는 목록에서 계산해 "합계 = 목록 합" 이 항상 성립하게 한다.
+ */
+export async function getHistory(ym: string | undefined): Promise<History> {
+  await requireSession()
+  const target = ym && YM_RE.test(ym) ? ym : cycleFor(todayKst(), (await loadSettings()).payDay).ym
+
+  const [month] = await db.select({ id: months.id }).from(months).where(eq(months.ym, target))
+  const items = month
+    ? await db.select().from(decisions).where(eq(decisions.monthId, month.id)).orderBy(desc(decisions.decidedAt))
+    : []
+
+  let heldTotal = 0
+  let boughtTotal = 0
+  for (const d of items) {
+    if (d.choice === 'held') heldTotal += d.price
+    else boughtTotal += d.price
+  }
+  return { ym: target, heldTotal, boughtTotal, items }
+}
+
+/** 설정이 저장된 주기 목록 (ym 내림차순) */
+export async function listMonths(): Promise<string[]> {
+  await requireSession()
+  const rows = await db.select({ ym: months.ym }).from(months).orderBy(desc(months.ym))
+  return rows.map((r) => r.ym)
 }
