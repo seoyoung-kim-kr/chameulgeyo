@@ -16,9 +16,9 @@ function createPool() {
 }
 
 // dev 서버의 HMR 로 모듈이 다시 평가될 때 Pool 이 쌓이지 않게 전역에 보관한다.
-const globalForDb = globalThis as unknown as { chameulgeyoPool?: Pool }
-const pool = globalForDb.chameulgeyoPool ?? createPool()
-if (process.env.NODE_ENV !== 'production') globalForDb.chameulgeyoPool = pool
+const globalForDb = globalThis as unknown as { sobiPool?: Pool }
+const pool = globalForDb.sobiPool ?? createPool()
+if (process.env.NODE_ENV !== 'production') globalForDb.sobiPool = pool
 
 export const db = drizzle({ client: pool, schema })
 export type Db = typeof db
