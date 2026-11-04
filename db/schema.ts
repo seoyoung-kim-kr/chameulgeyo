@@ -56,7 +56,7 @@ export const fixedExpenses = pgTable(
   (t) => [index('fixed_expenses_month_idx').on(t.monthId), check('fixed_expenses_amount_nonneg', sql`${t.amount} >= 0`)],
 )
 
-/** 판정 후 "참을게요 / 산다"를 고른 기록. id 는 클라이언트 nanoid (중복 = 재시도, 무시). */
+/** 판정 후 "안 산다 / 산다"를 고른 기록. id 는 클라이언트 nanoid (중복 = 재시도, 무시). */
 export const decisions = pgTable(
   'decisions',
   {

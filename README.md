@@ -2,6 +2,8 @@
 
 결제하기 전에 가격 하나를 넣으면, 다음 달 생활비가 어떻게 되는지 빨강/초록 신호등으로 보여주는 1인용 웹앱.
 
+- 서비스: https://sobi.seoyoung.dev
+
 카드값이 이미 많이 나온 상태에서 세일·품절임박에 휩쓸리는 순간을 위한 도구다. 결제를 막지 않고, 결제 직전에 "사면 하루 생활비가 얼마로 떨어지는지"를 보여준다. 기획서와 구현 계획은 [docs/README.md](docs/README.md)의 Notion 링크가 정본이다.
 
 ## 화면
@@ -86,10 +88,10 @@ npm run dev
 
 ## 성능 실측
 
-> 아직 재지 않았다. 배포 주소에서 `scripts/measure.mjs`로 잰 뒤 채운다.
+> 아직 재지 않았다. `scripts/measure.mjs`로 production(https://sobi.seoyoung.dev)을 잰 뒤 채운다. 다른 주소는 마지막 인자로 넘긴다.
 
 ```bash
-CG_SESSION=<브라우저 쿠키 cg_session 값> node scripts/measure.mjs https://<배포 주소>
+CG_SESSION=<sobi.seoyoung.dev 에 로그인한 브라우저의 cg_session 쿠키 값> node scripts/measure.mjs
 ```
 
 콜드는 10분 이상 아무도 열지 않은 뒤의 첫 요청(함수와 Neon이 모두 깨어나는 시간)이다. 웜은 이어지는 요청 10회의 중앙값이다. "홈 아이콘 → 판정 결과"는 폰 홈 화면 아이콘을 누른 순간부터 가격을 넣고 신호등이 뜰 때까지를 손으로 10번 잰다.

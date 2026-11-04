@@ -1,8 +1,10 @@
 // 배포본 응답 시간 측정 (README 성능 실측 표용). 의존성 없음, Node 22+.
 //
 // 사용:
-//   CG_SESSION=<브라우저 쿠키 cg_session 값> node scripts/measure.mjs https://<배포 주소>
-//   쿠키는 로그인한 브라우저 개발자도구 → Application(애플리케이션) → Cookies 에서 복사한다.
+//   CG_SESSION=<브라우저 쿠키 cg_session 값> node scripts/measure.mjs [주소]
+//   주소를 빼면 production(https://sobi.seoyoung.dev)을 잰다.
+//   쿠키는 그 주소에 로그인한 브라우저 개발자도구 → Application(애플리케이션) → Cookies 에서 복사한다.
+//   쿠키는 도메인마다 따로라, 측정할 주소와 같은 도메인에서 로그인한 쿠키여야 한다.
 //
 // 콜드: 10분 이상 아무도 열지 않은 뒤 실행하면 첫 요청이 콜드 스타트다 (함수 + Neon 깨우기).
 // 웜: 이어지는 요청들. 각 경로를 RUNS 번 재고 중앙값을 낸다.
@@ -11,10 +13,11 @@
 const RUNS = Number(process.env.RUNS ?? 10)
 const PATHS = ['/', '/check']
 
-const base = process.argv[2]?.replace(/\/$/, '')
+const PRODUCTION = 'https://sobi.seoyoung.dev'
+const base = (process.argv[2] ?? PRODUCTION).replace(/\/$/, '')
 const session = process.env.CG_SESSION
-if (!base || !session) {
-  console.error('사용: CG_SESSION=<쿠키값> node scripts/measure.mjs https://<배포 주소>')
+if (!session) {
+  console.error('사용: CG_SESSION=<쿠키값> node scripts/measure.mjs [주소, 기본 ' + PRODUCTION + ']')
   process.exit(1)
 }
 
