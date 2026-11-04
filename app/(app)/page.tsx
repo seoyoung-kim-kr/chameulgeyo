@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import { shortDate, timeKst, todayKst } from '@/lib/cycle'
 import { getHomeData } from '@/lib/queries'
 import { HomeView } from './HomeView'
 import { SetupLoader } from './setup/SetupLoader'
@@ -17,29 +16,33 @@ async function HomeLoader() {
   const home = await getHomeData()
   // 이번 주기 설정 전이면 홈 자리에서 바로 설정한다 (redirect 하지 않는 이유는 getHomeData 주석)
   if (!home) return <SetupLoader />
-  const { cycle, month, budget, heldTotal, isCutoff, cardStaleDays } = home
-  const updated = month.cardUpdatedAt
+  const { cycle, next, month, cashflow, budget } = home
   return (
     <HomeView
       ym={cycle.ym}
       cycleStart={cycle.start}
       cycleEnd={cycle.end}
+      nextStart={next.start}
+      nextEnd={next.end}
       salary={month.salary}
-      fixedTotal={month.fixed.reduce((acc, f) => acc + f.amount, 0)}
-      cardBalance={month.cardBalance}
-      cardUpdatedLabel={`${shortDate(todayKst(updated))} ${timeKst(updated)}`}
-      cardStaleDays={cardStaleDays}
-      cardConfirmedAmount={month.cardConfirmedAmount}
-      isCutoff={isCutoff}
-      available={budget.available}
+      fixedCashOut={cashflow.fixed.cashOut}
+      fixedCard={cashflow.fixed.card}
+      unclassifiedCount={cashflow.fixed.unclassifiedCount}
+      thisBill={cashflow.thisBill}
+      nextBill={cashflow.nextBill}
+      nextBillStaleDays={home.nextBillStaleDays}
+      isCutoff={home.isCutoff}
+      cash={cashflow.cash}
+      nextCash={cashflow.nextCash}
       shopping={budget.shopping}
       shoppingRaw={budget.shoppingRaw}
       shoppingExhausted={budget.shoppingExhausted}
       shoppingBudgetStart={month.shoppingBudgetStart}
+      boughtTotal={home.boughtTotal}
       livingNow={budget.livingNow}
       livingPerDay={budget.livingPerDay}
       emergencyAmount={month.emergencyAmount}
-      heldTotal={heldTotal}
+      heldTotal={home.heldTotal}
     />
   )
 }

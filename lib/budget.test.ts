@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { computeBudget, decisionFor, isValidPrice, judge } from './budget'
 
-// 기획서 UI 시안 숫자
-const base = { salary: 2_800_000, fixedTotal: 1_350_000, cardBalance: 912_000, livingTarget: 360_000, emergencyAmount: 30_000, cycleDays: 30 }
+// 기획서 UI 시안 숫자: 월급 2,800,000 − 고정 1,350,000 − 카드 912,000 = 이번 주기 현금 538,000
+const base = { cash: 538_000, livingTarget: 360_000, emergencyAmount: 30_000, spentShopping: 0, cycleDays: 30 }
 
 describe('computeBudget', () => {
   it('시안 숫자', () =>
@@ -16,7 +16,7 @@ describe('computeBudget', () => {
     }))
 
   it('쇼핑 예산 음수면 0 + exhausted, 모자란 만큼 생활비가 이미 깎여 있다', () => {
-    const b = computeBudget({ ...base, cardBalance: 1_200_000 })
+    const b = computeBudget({ ...base, cash: 250_000 })
     expect(b).toMatchObject({ available: 250_000, shoppingRaw: -140_000, shopping: 0, shoppingExhausted: true })
     // 250,000 − 비상금 30,000 = 실제로 남은 생활비 220,000
     expect(b.livingNow).toBe(220_000)
@@ -24,11 +24,19 @@ describe('computeBudget', () => {
   })
 
   it('쇼핑 예산이 딱 0 이면 exhausted 아님', () => {
-    const b = computeBudget({ ...base, cardBalance: 1_060_000 })
+    const b = computeBudget({ ...base, cash: 390_000 })
     expect(b).toMatchObject({ shoppingRaw: 0, shopping: 0, shoppingExhausted: false, livingNow: 360_000 })
   })
 
   it('하루 환산은 내림', () => expect(computeBudget({ ...base, livingTarget: 319_000 }).livingPerDay).toBe(10_633))
+
+  it('이번 주기에 산 금액은 쇼핑 예산에서만 한 번 빠지고, 쓸 수 있는 돈(현금)은 그대로', () => {
+    const b = computeBudget({ ...base, spentShopping: 100_000 })
+    expect(b).toMatchObject({ available: 538_000, shoppingRaw: 48_000, shopping: 48_000 })
+  })
+
+  it('산 금액이 쇼핑 예산을 넘으면 넘친 만큼 생활비가 깎인다', () =>
+    expect(computeBudget({ ...base, spentShopping: 189_000 })).toMatchObject({ shoppingRaw: -41_000, shoppingExhausted: true, livingNow: 319_000 }))
 })
 
 describe('judge', () => {

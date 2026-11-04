@@ -1,51 +1,54 @@
 'use server'
 
-import { eq } from 'drizzle-orm'
-import { refresh } from 'next/cache'
-import { z } from 'zod'
+import { redirect } from 'next/navigation'
 import { db } from '@/db'
-import { months, settings } from '@/db/schema'
 import { withSession, type ActionResult } from '@/lib/action'
-import { cycleFor, todayKst } from '@/lib/cycle'
-import { AMOUNT_MAX } from '@/lib/validation'
-
-const schema = z.object({
-  amount: z.number().int().min(0).max(AMOUNT_MAX),
-  /** 확정일에 옮겨 적은 금액이면 card_confirmed_amount 에도 저장 */
-  confirm: z.boolean(),
-})
-
-export type UpdateCardBalanceInput = z.infer<typeof schema>
+import { upsertCycleBill } from '@/lib/bills'
+import { cycleFor, inCycle, nextCycle, todayKst } from '@/lib/cycle'
+import { DEFAULT_SETTINGS, readMonth, readSettings } from '@/lib/ledger'
+import { saveCardBillsSchema, type SaveCardBillsInput } from '@/lib/validation'
 
 /**
- * 카드사 앱의 숫자를 옮겨 적는다. 이번 주기 months 의 card_balance 와 card_updated_at 을 바꾼다.
- * bought 가산으로 임시 반영됐던 값은 여기서 덮어써 이중 계산이 해소된다 (기획서 7번).
+ * 카드 대금 저장 (이번 주기·다음 주기 각 1건). 카드사 앱의 숫자를 옮겨 적는다.
+ * - "산다"로 다음 대금에 임시로 더해 둔 금액은 여기서 카드 앱 숫자로 덮어써 중복이 풀린다.
+ * - 출금일은 각 주기 안이어야 한다. 밖이면 다른 주기의 현금에서 빠지므로 거부한다.
+ * - 출금 완료는 현금 계산에 영향이 없다(주기 시작 기준). 남은 출금 표시에만 쓴다.
  */
-export async function updateCardBalance(input: UpdateCardBalanceInput): Promise<ActionResult> {
+export async function saveCardBills(input: SaveCardBillsInput): Promise<ActionResult> {
   return withSession(async () => {
-    const parsed = schema.safeParse(input)
+    const parsed = saveCardBillsSchema.safeParse(input)
     if (!parsed.success) return { ok: false, error: 'INVALID' }
-    const { amount, confirm } = parsed.data
+    const v = parsed.data
 
     try {
-      const [s] = await db.select({ payDay: settings.payDay }).from(settings).where(eq(settings.id, 1))
-      const cycle = cycleFor(todayKst(), s?.payDay ?? 5)
-      const updated = await db
-        .update(months)
-        .set({
-          cardBalance: amount,
-          cardUpdatedAt: new Date(),
-          ...(confirm ? { cardConfirmedAmount: amount } : {}),
+      const outcome = await db.transaction(async (tx) => {
+        const s = (await readSettings(tx)) ?? DEFAULT_SETTINGS
+        const cycle = cycleFor(todayKst(), s.payDay)
+        const next = nextCycle(cycle, s.payDay)
+        if (!(await readMonth(tx, cycle.ym))) return 'NO_MONTH' as const
+        // 쓰기 전에 두 출금일을 모두 확인한다 (하나만 저장되는 일이 없게)
+        if (!inCycle(v.thisBill.dueDate, cycle)) return 'THIS_OUT_OF_CYCLE' as const
+        if (!inCycle(v.nextBill.dueDate, next)) return 'NEXT_OUT_OF_CYCLE' as const
+
+        await upsertCycleBill(tx, cycle, v.thisBill.dueDate, {
+          dueDate: v.thisBill.dueDate,
+          amount: v.thisBill.amount,
+          paidAmount: v.thisBill.paid ? v.thisBill.amount : 0,
+          includesCardFixed: true,
         })
-        .where(eq(months.ym, cycle.ym))
-        .returning({ id: months.id })
-      if (updated.length === 0) return { ok: false, error: 'NO_MONTH' }
+        await upsertCycleBill(tx, next, v.nextBill.dueDate, {
+          dueDate: v.nextBill.dueDate,
+          amount: v.nextBill.amount,
+          includesCardFixed: v.nextBill.includesCardFixed,
+        })
+        return 'ok' as const
+      })
+      if (outcome !== 'ok') return { ok: false, error: outcome }
     } catch (e) {
-      console.error('[updateCardBalance]', e)
+      console.error('[saveCardBills]', e)
       return { ok: false, error: 'DB' }
     }
 
-    refresh()
-    return { ok: true, data: undefined }
+    redirect('/')
   })
 }

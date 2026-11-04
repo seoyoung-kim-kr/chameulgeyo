@@ -2,8 +2,10 @@
 
 import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useToast } from '@/components/Toast'
 import { formatWon } from '@/lib/format'
+import { cancelPurchase } from './actions'
 
 export type HistoryItem = {
   id: string
@@ -14,6 +16,8 @@ export type HistoryItem = {
   overAmount: number
   /** 'M/D' (KST) */
   date: string
+  /** 환불·취소한 기록이면 환불액을 뺀 대금 출금일('M/D')과 청구 전 취소 여부 */
+  refund: { due: string | null; beforeBilling: boolean } | null
 }
 
 type Filter = 'all' | 'held' | 'bought'
@@ -79,27 +83,87 @@ export function HistoryList({ items }: { items: HistoryItem[] }) {
         <p className="py-12 text-center text-sm text-muted">{EMPTY[filter]}</p>
       ) : (
         <ul className="flex flex-col divide-y divide-line rounded-card border border-line bg-white px-4">
-          {shown.map((d) => {
-            const held = d.choice === 'held'
-            return (
-              <li key={d.id} className="flex items-center gap-3 py-4">
-                <span aria-hidden className={clsx('size-2.5 shrink-0 rounded-full', held ? 'bg-green' : 'bg-red')} />
-                <div className="min-w-0 flex-1">
-                  <p className={clsx('truncate font-bold', !d.name && 'font-normal text-muted')}>{d.name ?? '이름 없음'}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {d.date} · {d.verdict === 'red' ? `예산 ${formatWon(d.overAmount)}원 초과` : '예산 안'}
-                  </p>
-                </div>
-                <p className={clsx('shrink-0 font-bold', held ? 'text-green' : 'text-red')}>
-                  <span className="sr-only">{held ? '안 샀어요' : '샀어요'} </span>
-                  {held ? '+' : '−'}
-                  {formatWon(d.price)}
-                </p>
-              </li>
-            )
-          })}
+          {shown.map((d) => (
+            <HistoryRow key={d.id} item={d} />
+          ))}
         </ul>
       )}
     </section>
+  )
+}
+
+const CANCEL_ERRORS: Record<string, string> = {
+  NOT_FOUND: '기록을 찾지 못했어요.',
+  NOT_BOUGHT: '산 기록만 취소할 수 있어요.',
+  DB: '취소하지 못했어요. 잠시 후 다시 시도해 주세요.',
+}
+
+/** 기록 한 줄. 산 기록은 환불·취소할 수 있고, 한 번 더 확인한다. */
+function HistoryRow({ item: d }: { item: HistoryItem }) {
+  const router = useRouter()
+  const toast = useToast()
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+  const held = d.choice === 'held'
+  const canceled = d.refund !== null
+
+  const cancel = () => {
+    setError(null)
+    startTransition(async () => {
+      const res = await cancelPurchase(d.id)
+      if (!res.ok) {
+        if (res.error === 'UNAUTHORIZED') return router.replace('/login')
+        setError(CANCEL_ERRORS[res.error] ?? CANCEL_ERRORS.DB)
+        return
+      }
+      setConfirming(false)
+      toast(`${formatWon(d.price)}원을 환불로 처리했어요`)
+    })
+  }
+
+  return (
+    <li className="flex flex-col gap-2 py-4">
+      <div className="flex items-center gap-3">
+        <span aria-hidden className={clsx('size-2.5 shrink-0 rounded-full', held ? 'bg-green' : canceled ? 'bg-line' : 'bg-red')} />
+        <div className="min-w-0 flex-1">
+          <p className={clsx('truncate font-bold', !d.name && 'font-normal text-muted', canceled && 'text-muted')}>{d.name ?? '이름 없음'}</p>
+          <p className="mt-1 text-xs text-muted">
+            {d.date} · {d.verdict === 'red' ? `예산 ${formatWon(d.overAmount)}원 초과` : '예산 안'}
+          </p>
+          {d.refund && (
+            <p className="mt-1 text-xs text-muted">
+              환불됨 · {d.refund.due ? `${d.refund.due} 카드값에서 빠져요` : '카드값에서 빠져요'}
+            </p>
+          )}
+        </div>
+        <p className={clsx('shrink-0 font-bold', held ? 'text-green' : canceled ? 'text-muted line-through' : 'text-red')}>
+          <span className="sr-only">{held ? '안 샀어요' : canceled ? '환불됨' : '샀어요'} </span>
+          {held ? '+' : '−'}
+          {formatWon(d.price)}
+        </p>
+      </div>
+
+      {!held && !canceled && (
+        <div className="flex items-center justify-end gap-2 text-xs">
+          {confirming ? (
+            <>
+              <span className="mr-auto text-muted">카드값에서 {formatWon(d.price)}원을 빼요.</span>
+              <button type="button" onClick={() => setConfirming(false)} disabled={pending} className="h-8 rounded-full px-3 text-muted active:bg-soft">
+                아니요
+              </button>
+              <button type="button" onClick={cancel} disabled={pending} className="h-8 rounded-full bg-soft px-3 font-bold text-deep active:opacity-70 disabled:opacity-40">
+                {pending ? '처리 중…' : '환불·취소하기'}
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setConfirming(true)} className="h-8 rounded-full border border-line px-3 text-muted active:bg-soft">
+              환불·취소
+            </button>
+          )}
+        </div>
+      )}
+      {error && <p className="text-right text-xs text-red">{error}</p>}
+    </li>
   )
 }

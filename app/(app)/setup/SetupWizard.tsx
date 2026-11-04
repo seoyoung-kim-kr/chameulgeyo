@@ -9,7 +9,8 @@ import { Chip } from '@/components/Chip'
 import { Field, MoneyInput, TextInput } from '@/components/Field'
 import { BottomActions, Card, Message, Screen } from '@/components/Screen'
 import { computeBudget } from '@/lib/budget'
-import { cycleFor, shortDate } from '@/lib/cycle'
+import { computeCashflow, type PaymentMethod, type Reserve } from '@/lib/cashflow'
+import { cardDueDate, cycleFor, nextCycle, shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { FIXED_MAX_COUNT, FIXED_NAME_MAX, type SaveMonthInput } from '@/lib/validation'
 import { saveMonth } from './actions'
@@ -17,11 +18,16 @@ import { saveMonth } from './actions'
 type Props = {
   defaults: SaveMonthInput
   today: string
+  /** 이미 저장된 대금의 출금일 (없으면 카드 출금일로 계산) */
+  thisBillDue: string | null
+  nextBillDue: string | null
+  /** 카드 결제 준비금 (이미 예산에서 뺀 카드 구매) */
+  reserves: Reserve[]
   /** 처음 쓰는 경우에만 날짜 단계부터 시작한다 */
   isFirst: boolean
 }
 
-type FixedRow = { key: number; name: string; amount: number }
+type FixedRow = { key: number; name: string; amount: number; method: PaymentMethod | null }
 type Step = 1 | 2 | 3
 
 const TOTAL_STEPS = 3
@@ -33,14 +39,16 @@ const ERRORS: Record<string, string> = {
   DB: '저장하지 못했어요.\n잠시 후 다시 시도해 주세요.',
 }
 
-export function SetupWizard({ defaults, today, isFirst }: Props) {
+export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserves, isFirst }: Props) {
   const router = useRouter()
   const firstStep: Step = isFirst ? 1 : 2
   const [step, setStep] = useState<Step>(firstStep)
   const [payDay, setPayDay] = useState(defaults.payDay)
   const [cardCutoffDay, setCardCutoffDay] = useState(defaults.cardCutoffDay)
+  const [cardPayDay, setCardPayDay] = useState(defaults.cardPayDay)
   const [salary, setSalary] = useState(defaults.salary)
-  const [cardBalance, setCardBalance] = useState(defaults.cardBalance)
+  const [thisBill, setThisBill] = useState(defaults.thisBill)
+  const [nextBill, setNextBill] = useState(defaults.nextBill)
   const [livingTarget, setLivingTarget] = useState(defaults.livingTarget)
   const [emergencyAmount, setEmergencyAmount] = useState(defaults.emergencyAmount)
   const [fixed, setFixed] = useState<FixedRow[]>(() => defaults.fixed.map((f, i) => ({ key: i, ...f })))
@@ -50,8 +58,24 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
 
   // 월급일을 바꾸면 주기도 바뀐다. 날짜 계산은 lib/cycle 에만 둔다.
   const cycle = useMemo(() => cycleFor(today, payDay), [today, payDay])
+  const next = useMemo(() => nextCycle(cycle, payDay), [cycle, payDay])
+  const thisDue = thisBillDue ?? cardDueDate(cycle, cardPayDay)
+  const nextDue = nextBillDue ?? cardDueDate(next, cardPayDay)
   const fixedTotal = fixed.reduce((sum, f) => sum + f.amount, 0)
-  const budget = computeBudget({ salary, fixedTotal, cardBalance, livingTarget, emergencyAmount, cycleDays: cycle.days })
+  // 서버와 같은 순수 함수로 미리 계산한다 (카드 고정지출은 대금에 들어 있으므로 현금에서 따로 빼지 않는다)
+  const cashflow = computeCashflow({
+    salary,
+    fixed,
+    bills: [
+      { dueDate: thisDue, amount: thisBill, paidAmount: 0, includesCardFixed: true },
+      { dueDate: nextDue, amount: nextBill, paidAmount: 0, includesCardFixed: true },
+    ],
+    cycle,
+    nextCycle: next,
+    reserves,
+  })
+  const budget = computeBudget({ cash: cashflow.cash, livingTarget, emergencyAmount, spentShopping: 0, cycleDays: cycle.days })
+  const unclassified = fixed.filter((f) => (f.name.trim() !== '' || f.amount > 0) && f.method === null).length
   // 이름 없는 0원 줄은 빈 줄로 보고 버린다. 금액만 있고 이름이 없으면 진행을 막는다.
   const filledFixed = fixed.filter((f) => f.name.trim() !== '' || f.amount > 0)
   const fixedValid = filledFixed.every((f) => f.name.trim() !== '')
@@ -61,7 +85,7 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
   const updateFixed = (key: number, patch: Partial<FixedRow>) =>
     setFixed((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)))
   const addFixed = () => {
-    setFixed((rows) => [...rows, { key: nextKey, name: '', amount: 0 }])
+    setFixed((rows) => [...rows, { key: nextKey, name: '', amount: 0, method: null }])
     setNextKey((k) => k + 1)
   }
 
@@ -71,11 +95,13 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
       const result = await saveMonth({
         payDay,
         cardCutoffDay,
+        cardPayDay,
         salary,
-        cardBalance,
+        thisBill,
+        nextBill,
         livingTarget,
         emergencyAmount,
-        fixed: filledFixed.map(({ name, amount }) => ({ name: name.trim(), amount })),
+        fixed: filledFixed.map(({ name, amount, method }) => ({ name: name.trim(), amount, method })),
       })
       if (!result.ok) {
         if (result.error === 'UNAUTHORIZED') return router.replace('/login')
@@ -85,7 +111,13 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
     })
   }
 
-  const message = error ?? (step === 2 && !fixedValid ? '고정지출 이름을 입력해 주세요.' : null)
+  const message =
+    error ??
+    (step === 2 && !fixedValid
+      ? '고정지출 이름을 입력해 주세요.'
+      : step === 2 && unclassified > 0
+        ? `결제 수단을 고르지 않은 고정지출이 ${unclassified}건 있어요.\n고르기 전까지는 계좌 출금으로 계산해요.`
+        : null)
 
   return (
     <Screen
@@ -101,6 +133,7 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
         <>
           <DayField label="월급일" value={payDay} onChange={setPayDay} />
           <DayField label="카드값 확정일" value={cardCutoffDay} onChange={setCardCutoffDay} />
+          <DayField label="카드값 출금일" value={cardPayDay} onChange={setCardPayDay} />
         </>
       )}
 
@@ -114,9 +147,9 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
 
           <Card aria-label="고정지출">
             <Field label="고정지출" aside={<span className="font-bold text-ink">{formatWon(fixedTotal)}원</span>}>
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col divide-y divide-line">
                 {fixed.map((f) => (
-                  <li key={f.key} className="grid grid-cols-[minmax(0,1fr)_8rem_2rem] items-center gap-2">
+                  <li key={f.key} className="grid grid-cols-[minmax(0,1fr)_5rem_2rem] items-center gap-2 py-3 first:pt-0">
                     <TextInput
                       aria-label="항목 이름"
                       placeholder="항목 이름"
@@ -125,7 +158,19 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
                       invalid={f.amount > 0 && f.name.trim() === ''}
                       onChange={(e) => updateFixed(f.key, { name: e.target.value })}
                     />
-                    <MoneyInput label={`${f.name || '항목'} 금액`} value={f.amount} onChange={(amount) => updateFixed(f.key, { amount })} />
+                    <select
+                      aria-label={`${f.name || '항목'} 결제 수단`}
+                      value={f.method ?? ''}
+                      onChange={(e) => updateFixed(f.key, { method: (e.target.value || null) as PaymentMethod | null })}
+                      className={clsx(
+                        'h-12 rounded-xl border bg-white px-2 text-sm outline-none focus:border-pink',
+                        f.method === null ? 'border-red text-red' : 'border-line text-ink',
+                      )}
+                    >
+                      <option value="">선택</option>
+                      <option value="account">계좌</option>
+                      <option value="card">카드</option>
+                    </select>
                     <button
                       type="button"
                       aria-label={`${f.name || '항목'} 삭제`}
@@ -134,6 +179,12 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
                     >
                       ×
                     </button>
+                    <MoneyInput
+                      label={`${f.name || '항목'} 금액`}
+                      value={f.amount}
+                      onChange={(amount) => updateFixed(f.key, { amount })}
+                      className="col-span-2"
+                    />
                   </li>
                 ))}
               </ul>
@@ -150,13 +201,20 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
           </Card>
 
           <Card>
-            <Field label="현재 카드값">
-              <MoneyInput label="현재 카드값" value={cardBalance} onChange={setCardBalance} />
-            </Field>
+            <div className="flex flex-col gap-4">
+              <Field label="이번 카드값" aside={<span>{shortDate(thisDue)} 출금</span>}>
+                <MoneyInput label="이번 카드값" value={thisBill} onChange={setThisBill} />
+              </Field>
+              <Field label="다음 카드값" aside={<span>{shortDate(nextDue)} 출금 예정</span>}>
+                <MoneyInput label="다음 카드값" value={nextBill} onChange={setNextBill} />
+              </Field>
+            </div>
           </Card>
 
           <Card tone="tint">
-            <p className="text-sm text-muted">다음 달 쓸 수 있는 돈</p>
+            <p className="text-sm text-muted">
+              이번 주기에 쓸 수 있는 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
+            </p>
             <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
               {formatWon(budget.available)}
               <span className="ml-0.5 text-base">원</span>
@@ -168,7 +226,9 @@ export function SetupWizard({ defaults, today, isFirst }: Props) {
       {step === 3 && (
         <>
           <Card tone="tint">
-            <p className="text-sm text-muted">쓸 수 있는 돈</p>
+            <p className="text-sm text-muted">
+              이번 주기에 쓸 수 있는 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
+            </p>
             <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
               {formatWon(budget.available)}
               <span className="ml-0.5 text-base">원</span>

@@ -5,20 +5,21 @@ export const PRICE_MIN = 1
 export const PRICE_MAX = 100_000_000
 
 export type BudgetInput = {
-  salary: number
-  fixedTotal: number
-  cardBalance: number
+  /** 이번 주기 현금 (lib/cashflow.ts computeCashflow 의 cash) */
+  cash: number
   livingTarget: number
   emergencyAmount: number
+  /** 이번 주기에 "산다"로 기록한 금액 합. 소비 예산(쇼핑)에서만 빠지고 현금 계산에는 들어가지 않는다 */
+  spentShopping: number
   cycleDays: number
 }
 
 export type Budget = {
-  /** 다음 달 쓸 수 있는 돈 = 월급 − 고정지출 − 카드값 */
+  /** 이번 주기에 쓸 수 있는 돈 = 이번 주기 현금 */
   available: number
-  /** 쓸 수 있는 돈 − 생활비 목표 − 비상금. 음수일 수 있다. 판정은 이 값을 쓴다. */
+  /** 쓸 수 있는 돈 − 생활비 목표 − 비상금 − 이번 주기에 산 금액. 음수일 수 있다. 판정은 이 값을 쓴다. */
   shoppingRaw: number
-  /** 화면 표시용 쇼핑 가능액 (0 미만은 0) */
+  /** 화면 표시용 쇼핑 예산 (0 미만은 0) */
   shopping: number
   /** 쇼핑 예산이 음수 = 이번 달은 쇼핑 없음 */
   shoppingExhausted: boolean
@@ -28,9 +29,13 @@ export type Budget = {
   livingPerDay: number
 }
 
+/**
+ * 이번 주기 현금을 생활비·비상금·쇼핑으로 나눈다.
+ * 카드로 산 것은 쇼핑 예산(소비)에서 빠지고, 현금은 그 대금이 출금되는 주기에 빠진다 (lib/cashflow.ts).
+ */
 export function computeBudget(i: BudgetInput): Budget {
-  const available = i.salary - i.fixedTotal - i.cardBalance
-  const shoppingRaw = available - i.livingTarget - i.emergencyAmount
+  const available = i.cash
+  const shoppingRaw = available - i.livingTarget - i.emergencyAmount - i.spentShopping
   const livingNow = i.livingTarget + Math.min(shoppingRaw, 0)
   return {
     available,

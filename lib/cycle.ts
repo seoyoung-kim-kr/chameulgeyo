@@ -113,3 +113,57 @@ export function shortDate(date: string): string {
   const { m, d } = parseDate(date)
   return `${m}/${d}`
 }
+
+/** 날짜가 주기 안(시작·끝 포함)인지 */
+export function inCycle(date: string, c: Cycle): boolean {
+  return date >= c.start && date <= c.end
+}
+
+/**
+ * 주기 안에서 카드 대금이 빠지는 날 (기본값 제안용). 주기가 걸친 두 달에서 카드 출금일(말일 클램프)을 찾는다.
+ * 주기 안에 해당 날이 없으면(예: 1/31~2/27 주기에 출금일 30일) 주기 시작일.
+ */
+export function cardDueDate(c: Cycle, cardPayDay: number): string {
+  const { y, m } = parseDate(c.start)
+  for (const ym of [toYm(y, m), toYm(y, m + 1)]) {
+    const date = `${ym}-${pad(clampDay(ym, cardPayDay))}`
+    if (inCycle(date, c)) return date
+  }
+  return c.start
+}
+
+/**
+ * 카드 사용일 → 그 사용분이 출금되는 날.
+ * 확정일(cutoffDay)까지 쓴 것이 한 청구서로 묶이고, 그 확정일 다음에 오는 첫 출금일(cardPayDay)에 빠진다.
+ * 예: 확정일 24·출금일 5 → 11/10 사용은 12/5, 11/26 사용은 1/5 출금.
+ */
+export function statementDueDate(date: string, cutoffDay: number, cardPayDay: number): string {
+  const { y, m, d } = parseDate(date)
+  const ym = toYm(y, m)
+  const endYm = d <= clampDay(ym, cutoffDay) ? ym : toYm(y, m + 1)
+  const end = `${endYm}-${pad(clampDay(endYm, cutoffDay))}`
+  const sameMonth = `${endYm}-${pad(clampDay(endYm, cardPayDay))}`
+  if (sameMonth > end) return sameMonth
+  const { y: ey, m: em } = parseYm(endYm)
+  const nextYm = toYm(ey, em + 1)
+  return `${nextYm}-${pad(clampDay(nextYm, cardPayDay))}`
+}
+
+export type RefundPlan = {
+  /** 구매가 원래 들어간 대금의 출금일 */
+  originalDue: string
+  /** 환불액을 빼는 대금의 출금일 */
+  refundDue: string
+  /**
+   * true: 원래 대금이 아직 출금 전 → 그 대금에서 빼고, 구매가 없던 것처럼 되돌린다 (쇼핑 예산·준비금 원복)
+   * false: 원래 대금은 이미 출금됨(준비금으로 냄) → 환불은 오늘 기준 다음 청구에서 빠지는 돈으로 처리
+   */
+  beforeBilling: boolean
+}
+
+/** 카드 구매 환불·취소를 어느 대금에 반영할지. 출금일 당일 취소는 이미 출금된 것으로 본다. */
+export function refundPlan(purchaseDate: string, today: string, cutoffDay: number, cardPayDay: number): RefundPlan {
+  const originalDue = statementDueDate(purchaseDate, cutoffDay, cardPayDay)
+  const beforeBilling = originalDue > today
+  return { originalDue, refundDue: beforeBilling ? originalDue : statementDueDate(today, cutoffDay, cardPayDay), beforeBilling }
+}

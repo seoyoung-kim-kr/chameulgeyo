@@ -1,76 +1,72 @@
 import 'server-only'
-import { and, asc, desc, eq, sum } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { decisions, fixedExpenses, months, settings } from '@/db/schema'
-import { computeBudget, type Budget } from './budget'
-import { cycleFor, daysBetween, isCutoffDay, prevYm, todayKst, type Cycle } from './cycle'
+import { decisions, months, settings } from '@/db/schema'
+import { cycleFor, daysBetween, isCutoffDay, nextCycle, prevYm, todayKst, type Cycle } from './cycle'
+import type { Reserve } from './cashflow'
+import { DEFAULT_SETTINGS, readBills, readLedger, readMonth, readReserves, readSettings, type CardBillRow, type Ledger, type MonthRow, type Settings } from './ledger'
 import { requireSession } from './session'
 
 // 화면용 조회 함수. 전부 첫 줄에서 requireSession() 을 부른다 (proxy 는 낙관적 검사일 뿐).
 // cookies() 를 먼저 읽으므로 호출하는 컴포넌트는 <Suspense> 안에 있어야 한다.
 
-export type Settings = { payDay: number; cardCutoffDay: number }
-export type MonthRow = typeof months.$inferSelect & { fixed: (typeof fixedExpenses.$inferSelect)[] }
-
-const DEFAULT_SETTINGS: Settings = { payDay: 5, cardCutoffDay: 24 }
+export type { CardBillRow, MonthRow, Settings }
 
 async function loadSettings(): Promise<Settings> {
-  const [row] = await db.select().from(settings).where(eq(settings.id, 1))
-  if (row) return { payDay: row.payDay, cardCutoffDay: row.cardCutoffDay }
+  const row = await readSettings(db)
+  if (row) return row
   await db.insert(settings).values({ id: 1, ...DEFAULT_SETTINGS }).onConflictDoNothing()
   return DEFAULT_SETTINGS
 }
 
-async function loadMonth(ym: string): Promise<MonthRow | null> {
-  const [month] = await db.select().from(months).where(eq(months.ym, ym))
-  if (!month) return null
-  const fixed = await db.select().from(fixedExpenses).where(eq(fixedExpenses.monthId, month.id)).orderBy(asc(fixedExpenses.sort))
-  return { ...month, fixed }
-}
-
-/** 설정 행이 없으면 기본값(월급일 5, 확정일 24)으로 만든다. */
+/** 설정 행이 없으면 기본값(월급일 5, 확정일 24, 출금일 5)으로 만든다. */
 export async function getSettings(): Promise<Settings> {
   await requireSession()
   return loadSettings()
 }
 
-export async function getCurrentCycle(): Promise<{ settings: Settings; cycle: Cycle; today: string }> {
+export async function getCurrentCycle(): Promise<{ settings: Settings; cycle: Cycle; next: Cycle; today: string }> {
   await requireSession()
   const s = await loadSettings()
   const today = todayKst()
-  return { settings: s, cycle: cycleFor(today, s.payDay), today }
+  const cycle = cycleFor(today, s.payDay)
+  return { settings: s, cycle, next: nextCycle(cycle, s.payDay), today }
 }
 
 export async function getMonthByYm(ym: string): Promise<MonthRow | null> {
   await requireSession()
-  return loadMonth(ym)
+  return readMonth(db, ym)
 }
 
-/** /setup 기본값. 이번 주기 설정이 없으면 직전 주기를 함께 돌려준다 (복사용). */
+/**
+ * /setup 기본값. 이번 주기 설정이 없으면 직전 주기를 함께 돌려준다 (복사용).
+ * 카드 대금은 출금일 기준이라 주기와 상관없이 그대로 읽는다: 지난 주기에 적어 둔 "다음 대금"이 이번 주기 대금이 된다.
+ */
 export async function getSetupDefaults(): Promise<{
   settings: Settings
   cycle: Cycle
+  next: Cycle
   today: string
   current: MonthRow | null
   previous: MonthRow | null
+  thisBill: CardBillRow | null
+  nextBill: CardBillRow | null
+  reserves: Reserve[]
 }> {
-  const { settings: s, cycle, today } = await getCurrentCycle()
-  const current = await loadMonth(cycle.ym)
-  const previous = current ? null : await loadMonth(prevYm(cycle.ym))
-  return { settings: s, cycle, today, current, previous }
+  const { settings: s, cycle, next, today } = await getCurrentCycle()
+  const current = await readMonth(db, cycle.ym)
+  const previous = current ? null : await readMonth(db, prevYm(cycle.ym))
+  const [thisBill = null] = await readBills(db, cycle.start, cycle.end)
+  const [nextBill = null] = await readBills(db, next.start, next.end)
+  const reserves = await readReserves(db, s, cycle, next)
+  return { settings: s, cycle, next, today, current, previous, thisBill, nextBill, reserves }
 }
 
-export type HomeData = {
-  cycle: Cycle
+export type HomeData = Ledger & {
   today: string
-  settings: Settings
-  month: MonthRow
-  budget: Budget
-  /** 이번 주기에 아낀 돈(안 산 금액) 합계 (held 전체, 판정 색 무관) */
-  heldTotal: number
   isCutoff: boolean
-  /** 카드값을 마지막으로 옮겨 적은 날로부터 지난 일수 (KST 날짜 기준) */
-  cardStaleDays: number
+  /** 다음 대금을 카드 앱 숫자로 마지막에 옮겨 적은 날로부터 지난 일수 (없으면 null) */
+  nextBillStaleDays: number | null
 }
 
 /**
@@ -80,33 +76,38 @@ export type HomeData = {
  * 호출하는 화면이 null 일 때 무엇을 보여줄지 정한다.
  */
 export async function getHomeData(): Promise<HomeData | null> {
-  const { settings: s, cycle, today } = await getCurrentCycle()
-  const month = await loadMonth(cycle.ym)
-  if (!month) return null
-
-  const [held] = await db
-    .select({ total: sum(decisions.price) })
-    .from(decisions)
-    .where(and(eq(decisions.monthId, month.id), eq(decisions.choice, 'held')))
-
-  const budget = computeBudget({
-    salary: month.salary,
-    fixedTotal: month.fixed.reduce((acc, f) => acc + f.amount, 0),
-    cardBalance: month.cardBalance,
-    livingTarget: month.livingTarget,
-    emergencyAmount: month.emergencyAmount,
-    cycleDays: cycle.days,
-  })
-
+  await requireSession()
+  const today = todayKst()
+  const ledger = await readLedger(db, today)
+  if (!ledger) return null
+  const nextBill = ledger.bills.find((b) => b.dueDate >= ledger.next.start)
   return {
-    cycle,
+    ...ledger,
     today,
-    settings: s,
-    month,
-    budget,
-    heldTotal: Number(held?.total ?? 0),
-    isCutoff: isCutoffDay(today, s.cardCutoffDay),
-    cardStaleDays: Math.max(daysBetween(todayKst(month.cardUpdatedAt), today), 0),
+    isCutoff: isCutoffDay(today, ledger.settings.cardCutoffDay),
+    nextBillStaleDays: nextBill ? Math.max(daysBetween(todayKst(nextBill.updatedAt), today), 0) : null,
+  }
+}
+
+/** /card 화면: 이번 주기·다음 주기 대금과 카드 고정지출 합 */
+export async function getCardBills(): Promise<{
+  cycle: Cycle
+  next: Cycle
+  settings: Settings
+  thisBill: CardBillRow | null
+  nextBill: CardBillRow | null
+  cardFixed: number
+} | null> {
+  await requireSession()
+  const ledger = await readLedger(db, todayKst())
+  if (!ledger) return null
+  return {
+    cycle: ledger.cycle,
+    next: ledger.next,
+    settings: ledger.settings,
+    thisBill: ledger.bills.find((b) => b.dueDate <= ledger.cycle.end) ?? null,
+    nextBill: ledger.bills.find((b) => b.dueDate >= ledger.next.start) ?? null,
+    cardFixed: ledger.cashflow.fixed.card,
   }
 }
 
@@ -116,7 +117,7 @@ export type History = {
   ym: string
   /** 아낀 돈(안 산 금액) 합계 (held 전체) */
   heldTotal: number
-  /** 그래도 산 돈 합계 (bought 전체) */
+  /** 그래도 산 돈 합계 (bought 중 환불·취소하지 않은 것) */
   boughtTotal: number
   /** 최신순 */
   items: DecisionRow[]
@@ -141,7 +142,7 @@ export async function getHistory(ym: string | undefined): Promise<History> {
   let boughtTotal = 0
   for (const d of items) {
     if (d.choice === 'held') heldTotal += d.price
-    else boughtTotal += d.price
+    else if (!d.canceledAt) boughtTotal += d.price
   }
   return { ym: target, heldTotal, boughtTotal, items }
 }
