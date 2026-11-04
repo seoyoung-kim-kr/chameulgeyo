@@ -11,6 +11,11 @@ const VARIANTS: Record<Variant, string> = {
   danger: 'h-11 px-4 text-base text-red',
 }
 
+/** <Link> 같은 다른 요소에 버튼 모양을 입힐 때 */
+export function buttonClass(variant: Variant = 'primary', className?: string): string {
+  return clsx(VARIANTS[variant], 'inline-flex items-center justify-center', className)
+}
+
 export function Button({ variant = 'primary', className, type = 'button', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return <button type={type} className={clsx(VARIANTS[variant], 'disabled:opacity-40', className)} {...rest} />
 }

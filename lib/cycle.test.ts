@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clampDay, cycleFor, daysInMonth, daysLeft, isCutoffDay, nextCycle, prevYm, todayKst } from './cycle'
+import { clampDay, cycleFor, daysBetween, daysInMonth, daysLeft, isCutoffDay, nextCycle, prevYm, shortDate, timeKst, todayKst } from './cycle'
 
 describe('cycleFor', () => {
   it('월급일 5, 11/10 → 11/5~12/4 (30일)', () =>
@@ -41,4 +41,17 @@ describe('nextCycle / prevYm / daysLeft', () => {
   it('prevYm 연도 넘김', () => expect(prevYm('2026-01')).toBe('2025-12'))
   it('daysLeft 는 오늘 포함', () => expect(daysLeft('2026-12-04', cycleFor('2026-11-10', 5))).toBe(1))
   it('daysLeft 첫날', () => expect(daysLeft('2026-11-05', cycleFor('2026-11-10', 5))).toBe(30))
+})
+
+describe('daysBetween / timeKst / shortDate', () => {
+  it('daysBetween 같은 날은 0, 앞선 날은 음수', () => {
+    expect(daysBetween('2026-11-01', '2026-11-04')).toBe(3)
+    expect(daysBetween('2026-11-04', '2026-11-04')).toBe(0)
+    expect(daysBetween('2026-11-04', '2026-11-01')).toBe(-3)
+  })
+  it('timeKst 는 UTC+9 의 HH:mm', () => {
+    expect(timeKst(new Date('2026-11-04T23:30:00Z'))).toBe('08:30')
+    expect(timeKst(new Date('2026-11-04T04:05:00Z'))).toBe('13:05')
+  })
+  it('shortDate 는 0 을 뗀 M/D', () => expect(shortDate('2026-11-05')).toBe('11/5'))
 })
