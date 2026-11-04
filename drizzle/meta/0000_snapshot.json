@@ -1,0 +1,347 @@
+{
+  "id": "17510a3a-d34b-4277-9696-bc4e744fa1d9",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.decisions": {
+      "name": "decisions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(21)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "month_id": {
+          "name": "month_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price": {
+          "name": "price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verdict": {
+          "name": "verdict",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "choice": {
+          "name": "choice",
+          "type": "varchar(6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shopping_available_at": {
+          "name": "shopping_available_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "over_amount": {
+          "name": "over_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "decisions_month_idx": {
+          "name": "decisions_month_idx",
+          "columns": [
+            {
+              "expression": "month_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "decisions_month_id_months_id_fk": {
+          "name": "decisions_month_id_months_id_fk",
+          "tableFrom": "decisions",
+          "tableTo": "months",
+          "columnsFrom": [
+            "month_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "decisions_verdict": {
+          "name": "decisions_verdict",
+          "value": "\"decisions\".\"verdict\" in ('red', 'green')"
+        },
+        "decisions_choice": {
+          "name": "decisions_choice",
+          "value": "\"decisions\".\"choice\" in ('held', 'bought')"
+        },
+        "decisions_price_range": {
+          "name": "decisions_price_range",
+          "value": "\"decisions\".\"price\" between 1 and 100000000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fixed_expenses": {
+      "name": "fixed_expenses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "month_id": {
+          "name": "month_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort": {
+          "name": "sort",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "fixed_expenses_month_idx": {
+          "name": "fixed_expenses_month_idx",
+          "columns": [
+            {
+              "expression": "month_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fixed_expenses_month_id_months_id_fk": {
+          "name": "fixed_expenses_month_id_months_id_fk",
+          "tableFrom": "fixed_expenses",
+          "tableTo": "months",
+          "columnsFrom": [
+            "month_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "fixed_expenses_amount_nonneg": {
+          "name": "fixed_expenses_amount_nonneg",
+          "value": "\"fixed_expenses\".\"amount\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.months": {
+      "name": "months",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ym": {
+          "name": "ym",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "salary": {
+          "name": "salary",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "card_balance": {
+          "name": "card_balance",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "card_updated_at": {
+          "name": "card_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "card_confirmed_amount": {
+          "name": "card_confirmed_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "living_target": {
+          "name": "living_target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "emergency_amount": {
+          "name": "emergency_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shopping_budget_start": {
+          "name": "shopping_budget_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "months_ym_unique": {
+          "name": "months_ym_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ym"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "months_ym_format": {
+          "name": "months_ym_format",
+          "value": "\"months\".\"ym\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        },
+        "months_amounts_nonneg": {
+          "name": "months_amounts_nonneg",
+          "value": "\"months\".\"salary\" >= 0 and \"months\".\"card_balance\" >= 0 and \"months\".\"living_target\" >= 0 and \"months\".\"emergency_amount\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.settings": {
+      "name": "settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "pay_day": {
+          "name": "pay_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "card_cutoff_day": {
+          "name": "card_cutoff_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 24
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "settings_single_row": {
+          "name": "settings_single_row",
+          "value": "\"settings\".\"id\" = 1"
+        },
+        "settings_pay_day_range": {
+          "name": "settings_pay_day_range",
+          "value": "\"settings\".\"pay_day\" between 1 and 31"
+        },
+        "settings_cutoff_day_range": {
+          "name": "settings_cutoff_day_range",
+          "value": "\"settings\".\"card_cutoff_day\" between 1 and 31"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

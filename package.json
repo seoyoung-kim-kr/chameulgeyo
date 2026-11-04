@@ -9,10 +9,13 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "db:push": "drizzle-kit push"
+    "db:smoke": "tsx --env-file=.env.local scripts/db-smoke.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
+    "@vercel/functions": "^3.10.6",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",
     "jose": "^6.2.15",

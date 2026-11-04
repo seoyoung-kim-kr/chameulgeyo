@@ -16,4 +16,6 @@ npm run dev
 | --- | --- |
 | `npm test` | vitest (`lib/**/*.test.ts`) |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run db:push` | Drizzle 스키마를 DB에 반영 |
+| `npm run db:generate` | `db/schema.ts` 변경을 `drizzle/` 마이그레이션 SQL로 생성 |
+| `npm run db:migrate` | 마이그레이션을 DB에 적용 |
+| `npm run db:smoke` | DB 연결·트랜잭션 확인 |
