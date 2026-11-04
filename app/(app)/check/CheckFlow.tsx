@@ -4,7 +4,9 @@ import clsx from 'clsx'
 import { nanoid } from 'nanoid'
 import { useRouter } from 'next/navigation'
 import { useLayoutEffect, useState, useTransition, type FormEvent } from 'react'
-import { buttonClass } from '@/components/Button'
+import { Button } from '@/components/Button'
+import { TextInput } from '@/components/Field'
+import { BottomActions, Card, Message } from '@/components/Screen'
 import { Keypad } from '@/components/Keypad'
 import { TrafficLight } from '@/components/TrafficLight'
 import { useToast } from '@/components/Toast'
@@ -18,9 +20,9 @@ type Props = { shoppingRaw: number; livingTarget: number; cycleDays: number }
 const PRICE_DIGITS = String(PRICE_MAX).length
 
 const ERRORS: Record<string, string> = {
-  INVALID: '입력값을 다시 확인해 주세요',
-  INVALID_PRICE: '가격은 1원부터 1억 원까지 넣을 수 있어요',
-  DB: '저장하지 못했어요. 잠시 후 다시 시도해 주세요',
+  INVALID: '입력한 값을 다시 확인해 주세요.',
+  INVALID_PRICE: '가격은 1원부터 1억 원까지 입력할 수 있어요.',
+  DB: '저장하지 못했어요.\n잠시 후 다시 시도해 주세요.',
 }
 
 /** 가격 입력 → 판정 → 선택. 판정은 같은 순수 함수로 즉시 미리 보여주고 서버 응답으로 교체한다. */
@@ -82,7 +84,7 @@ export function CheckFlow({ shoppingRaw, livingTarget, cycleDays }: Props) {
     startTransition(async () => {
       const res = await choose({ id: decisionId, name: name.trim() || null, price: result.price, choice })
       if (!res.ok) return handleError(res.error)
-      toast(choice === 'held' ? `${formatWon(result.price)}원 지켰어요 ♡` : `카드값에 ${formatWon(result.price)}원 더했어요`)
+      toast(choice === 'held' ? `${formatWon(result.price)}원 아꼈어요` : `카드값에 ${formatWon(result.price)}원을 더했어요`)
       reset()
       router.push('/')
     })
@@ -90,60 +92,42 @@ export function CheckFlow({ shoppingRaw, livingTarget, cycleDays }: Props) {
 
   if (step === 'verdict' && result) {
     return (
-      <div className="flex flex-1 flex-col">
-        <TrafficLight
-          result={result}
-          productName={name}
-          pending={pending}
-          confirmed={confirmed}
-          onHold={() => pick('held')}
-          onBuy={() => pick('bought')}
-        />
-        <p className="mt-2 h-5 text-center text-sm text-red" aria-live="polite">
-          {error ?? ''}
-        </p>
-        <button type="button" className="mt-1 self-center text-sm text-muted active:text-ink disabled:opacity-40" onClick={() => setStep('input')} disabled={pending}>
-          가격 다시 입력
-        </button>
-      </div>
+      <TrafficLight
+        result={result}
+        productName={name}
+        pending={pending}
+        confirmed={confirmed}
+        error={error}
+        onHold={() => pick('held')}
+        onBuy={() => pick('bought')}
+        onEdit={() => setStep('input')}
+      />
     )
   }
 
   return (
-    <form onSubmit={judgeNow} className="flex flex-1 flex-col">
-      <input
-        aria-label="상품명 (선택)"
-        placeholder="상품명 (선택)"
-        maxLength={DECISION_NAME_MAX}
-        autoComplete="off"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="h-12 rounded-card border border-line bg-white px-4 outline-none placeholder:text-muted/60 focus:border-pink"
-      />
+    <form onSubmit={judgeNow} className="contents">
+      <TextInput aria-label="상품 이름 (선택)" placeholder="상품 이름 (선택)" maxLength={DECISION_NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} />
 
-      <div className="mt-6 text-center">
-        <p className="text-sm text-muted">얼마예요?</p>
-        <p className={clsx('mt-1 text-4xl font-bold', value === '' ? 'text-line' : 'text-deep')} aria-live="polite">
+      <Card tone="tint" className="text-center">
+        <p className="text-sm text-muted">가격</p>
+        <p className={clsx('mt-2 text-3xl font-bold', value === '' ? 'text-line' : 'text-deep')} aria-live="polite">
           {formatWon(price)}
-          <span className="ml-1 text-lg font-normal text-muted">원</span>
+          <span className="ml-0.5 text-base font-normal text-muted">원</span>
         </p>
         <p className={clsx('mt-2 text-xs', shoppingRaw < 0 ? 'text-red' : 'text-muted')}>
-          {shoppingRaw < 0 ? '이번 달은 쇼핑 없음 · 무엇을 사도 빨강이에요' : `지금 쇼핑 가능 ${formatWon(shopping)}원`}
+          {shoppingRaw < 0 ? '이번 달은 쇼핑 예산이 없어요.' : `남은 쇼핑 예산 ${formatWon(shopping)}원`}
         </p>
-      </div>
+      </Card>
 
-      <div className="mx-auto mt-6 w-full max-w-80">
-        <Keypad value={value} onChange={setValue} maxLength={PRICE_DIGITS} extraKey="000" />
-      </div>
+      <Keypad value={value} onChange={setValue} maxLength={PRICE_DIGITS} extraKey="000" />
 
-      <p className="mt-2 h-5 text-center text-sm text-red" aria-live="polite">
-        {error ?? ''}
-      </p>
-      <div className="mt-auto pt-4">
-        <button type="submit" className={buttonClass('primary', 'disabled:opacity-40')} disabled={!canJudge}>
-          판정 받기
-        </button>
-      </div>
+      <BottomActions>
+        <Message>{error && <span className="whitespace-pre-line">{error}</span>}</Message>
+        <Button type="submit" disabled={!canJudge}>
+          확인하기
+        </Button>
+      </BottomActions>
     </form>
   )
 }

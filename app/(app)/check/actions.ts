@@ -19,7 +19,7 @@ export async function decide(price: number): Promise<ActionResult<DecideResult>>
   })
 }
 
-/** 참을게요 / 산다 기록. 같은 id 는 한 번만 반영된다. */
+/** 안 산다 / 산다 기록. 같은 id 는 한 번만 반영된다. */
 export async function choose(input: ChooseInput): Promise<ActionResult<{ duplicated: boolean }>> {
   return withSession(async () => {
     let result: ActionResult<{ duplicated: boolean }>

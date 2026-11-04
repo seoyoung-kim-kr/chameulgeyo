@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { buttonClass } from '@/components/Button'
+import { Card, Screen } from '@/components/Screen'
 import { shortDate, todayKst } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { getHistory, listMonths } from '@/lib/queries'
@@ -9,19 +11,18 @@ import { HistoryList, MonthSelect, type HistoryItem } from './HistoryList'
 // (페이지 최상단에서 await 하면 정적 셸까지 요청 시점으로 밀린다).
 export default function HistoryPage({ searchParams }: PageProps<'/history'>) {
   return (
-    <main className="flex min-h-[calc(100dvh-12px)] flex-col px-5 pt-5 pb-8 md:min-h-[832px]">
-      <header className="mb-5 flex items-center justify-between">
-        <h1 className="text-xl font-bold">
-          <span className="text-pink">♡</span> 기록
-        </h1>
-        <Link href="/" className="text-sm text-muted active:text-ink">
+    <Screen
+      title="기록"
+      action={
+        <Link href="/" className={buttonClass('text', 'h-8 px-2 text-sm')}>
           닫기
         </Link>
-      </header>
+      }
+    >
       <Suspense fallback={<HistorySkeleton />}>
         <HistoryLoader searchParams={searchParams} />
       </Suspense>
-    </main>
+    </Screen>
   )
 }
 
@@ -44,18 +45,18 @@ async function HistoryLoader({ searchParams }: Pick<PageProps<'/history'>, 'sear
   return (
     <>
       <MonthSelect value={history.ym} options={options} />
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-card bg-green-soft px-4 py-3">
-          <p className="text-xs text-muted">참은 돈</p>
-          <p className="text-xl font-bold text-green">+{formatWon(history.heldTotal)}</p>
-        </div>
-        <div className="rounded-card border border-line bg-white px-4 py-3">
-          <p className="text-xs text-muted">그래도 산 돈</p>
-          <p className="text-xl font-bold text-red">
+      <div className="grid grid-cols-2 gap-3">
+        <Card tone="green">
+          <p className="text-sm text-muted">아낀 돈</p>
+          <p className="mt-2 text-lg font-bold text-green">+{formatWon(history.heldTotal)}원</p>
+        </Card>
+        <Card>
+          <p className="text-sm text-muted">산 돈</p>
+          <p className="mt-2 text-lg font-bold text-red">
             {history.boughtTotal > 0 ? '−' : ''}
-            {formatWon(history.boughtTotal)}
+            {formatWon(history.boughtTotal)}원
           </p>
-        </div>
+        </Card>
       </div>
       {/* 달을 바꾸면 필터를 '전체'로 되돌린다 */}
       <HistoryList key={history.ym} items={items} />
@@ -66,10 +67,10 @@ async function HistoryLoader({ searchParams }: Pick<PageProps<'/history'>, 'sear
 function HistorySkeleton() {
   return (
     <div className="flex flex-col gap-3" aria-busy>
-      <div className="h-10 w-36 rounded-xl bg-soft" />
-      <div className="grid grid-cols-2 gap-2">
-        <div className="h-18 rounded-card bg-white" />
-        <div className="h-18 rounded-card bg-white" />
+      <div className="h-12 w-36 rounded-xl bg-white" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="h-22 rounded-card bg-white" />
+        <div className="h-22 rounded-card bg-white" />
       </div>
       <div className="h-11 rounded-full bg-soft" />
       <div className="h-48 rounded-card bg-white" />

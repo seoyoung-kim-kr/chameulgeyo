@@ -1,0 +1,64 @@
+'use client'
+
+import clsx from 'clsx'
+import type { InputHTMLAttributes, ReactNode } from 'react'
+import { formatWon } from '@/lib/format'
+import { AMOUNT_MAX } from '@/lib/validation'
+
+/** 입력 상자 공통 모양: 높이 48, 테두리, 포커스 시 핑크 테두리 */
+const BOX = 'flex h-12 items-center gap-1 rounded-xl border border-line bg-white px-3 focus-within:border-pink'
+
+/** 라벨 + 입력. 라벨과 입력 상자 사이 8. */
+export function Field({ label, aside, children }: { label: ReactNode; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between text-sm text-muted">
+        <span>{label}</span>
+        {aside}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+type MoneyInputProps = {
+  value: number
+  onChange: (value: number) => void
+  /** 화면에 라벨이 따로 없을 때 스크린리더용 이름 */
+  label: string
+  className?: string
+}
+
+/** 금액 입력 상자. 화면엔 콤마를 찍고 값은 정수로 돌려준다. 오른쪽 정렬 + '원'. */
+export function MoneyInput({ value, onChange, label, className }: MoneyInputProps) {
+  return (
+    <span className={clsx(BOX, className)}>
+      <input
+        aria-label={label}
+        inputMode="numeric"
+        autoComplete="off"
+        className="w-full min-w-0 bg-transparent text-right text-base font-bold outline-none placeholder:font-normal placeholder:text-muted/50"
+        placeholder="0"
+        value={value === 0 ? '' : formatWon(value)}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+          onChange(Math.min(Number(digits || '0'), AMOUNT_MAX))
+        }}
+      />
+      <span className="shrink-0 text-sm text-muted">원</span>
+    </span>
+  )
+}
+
+/** 글자 입력 상자 (항목 이름, 상품 이름) */
+export function TextInput({ className, invalid, ...rest }: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
+  return (
+    <span className={clsx(BOX, invalid && 'border-red', className)}>
+      <input
+        autoComplete="off"
+        className="w-full min-w-0 bg-transparent text-base outline-none placeholder:text-muted/50"
+        {...rest}
+      />
+    </span>
+  )
+}
