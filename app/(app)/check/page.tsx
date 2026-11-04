@@ -1,38 +1,56 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { buttonClass } from '@/components/Button'
+import { BottomActions, Card, Screen } from '@/components/Screen'
 import { getHomeData } from '@/lib/queries'
 import { CheckFlow } from './CheckFlow'
 
-// 제목·닫기는 정적 셸, 쇼핑 가능액은 <Suspense> 안에서 요청마다 읽는다.
+// 제목·닫기는 정적 셸, 쇼핑 예산은 <Suspense> 안에서 요청마다 읽는다.
 export default function CheckPage() {
   return (
-    <main className="flex min-h-[calc(100dvh-12px)] flex-col px-5 pt-5 pb-8 md:min-h-[832px]">
-      <header className="mb-5 flex items-center justify-between">
-        <h1 className="text-xl font-bold">
-          <span className="text-pink">♡</span> 사고 싶은 것
-        </h1>
-        <Link href="/" className="text-sm text-muted active:text-ink">
+    <Screen
+      title="사기 전에 확인"
+      action={
+        <Link href="/" className={buttonClass('text', 'h-8 px-2 text-sm')}>
           닫기
         </Link>
-      </header>
+      }
+    >
       <Suspense fallback={<CheckSkeleton />}>
         <CheckLoader />
       </Suspense>
-    </main>
+    </Screen>
   )
 }
 
 async function CheckLoader() {
-  const { budget, month, cycle } = await getHomeData()
+  const home = await getHomeData()
+  if (!home) {
+    return (
+      <>
+        <Card className="text-center text-sm text-muted">
+          이번 달 예산이 아직 없어요.
+          <br />
+          설정을 먼저 해 주세요.
+        </Card>
+        <BottomActions>
+          <Link href="/setup" className={buttonClass('primary')}>
+            설정하기
+          </Link>
+        </BottomActions>
+      </>
+    )
+  }
+  const { budget, month, cycle } = home
   return <CheckFlow shoppingRaw={budget.shoppingRaw} livingTarget={month.livingTarget} cycleDays={cycle.days} />
 }
 
 function CheckSkeleton() {
   return (
-    <div className="flex flex-col gap-4" aria-busy>
-      <div className="h-12 rounded-card bg-white" />
-      <div className="mx-auto mt-4 h-12 w-48 rounded-full bg-soft" />
-      <div className="mx-auto mt-6 h-72 w-full max-w-80 rounded-card bg-white" />
+    <div className="flex flex-col gap-3" aria-busy>
+      <div className="h-12 rounded-xl bg-white" />
+      <div className="h-28 rounded-card bg-tint" />
+      <div className="h-72 rounded-card bg-white" />
     </div>
   )
 }

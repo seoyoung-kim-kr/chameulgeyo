@@ -1,7 +1,7 @@
 'use server'
 
 import { eq, sql } from 'drizzle-orm'
-import { refresh } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { fixedExpenses, months, settings } from '@/db/schema'
 import { withSession, type ActionResult } from '@/lib/action'
@@ -13,10 +13,12 @@ import { saveMonthSchema, type SaveMonthInput } from '@/lib/validation'
  * 월 설정 저장. settings → 이번 주기 months → fixed_expenses 를 한 트랜잭션으로 쓴다.
  * - months 는 ym 기준 upsert. shopping_budget_start 는 insert 때만 정하고 재설정해도 유지한다.
  * - card_updated_at 은 카드값이 실제로 바뀌었을 때만 갱신한다 (카드사 숫자를 옮겨 적은 시각).
- * 성공 시 redirect 대신 결과를 돌려준다: /setup 은 Activity 로 숨겨진 채 남으므로
- * 클라이언트가 단계 상태를 초기화한 뒤 직접 홈으로 이동한다.
+ * 성공하면 서버에서 홈으로 redirect 한다 (돌아오지 않는다). 클라이언트에서 router.push('/') 하면
+ * 이번 주기 설정 전에 홈이 /setup 으로 보냈던 화면이 Activity 에 보존돼 있다가 되살아나
+ * 다시 /setup 으로 튕긴다(2026-11-05 실측). 서버 redirect 는 새로 렌더링한 홈을 응답에 실어 보낸다.
+ * 마법사 단계는 저장 후 defaults 가 바뀌어 key 로 새로 마운트되므로 따로 되돌리지 않는다.
  */
-export async function saveMonth(input: SaveMonthInput): Promise<ActionResult<{ ym: string }>> {
+export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
   return withSession(async () => {
     const parsed = saveMonthSchema.safeParse(input)
     if (!parsed.success) return { ok: false, error: 'INVALID' }
@@ -73,7 +75,6 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult<{ y
       return { ok: false, error: 'DB' }
     }
 
-    refresh()
-    return { ok: true, data: { ym: cycle.ym } }
+    redirect('/')
   })
 }

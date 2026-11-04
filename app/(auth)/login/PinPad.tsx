@@ -25,11 +25,11 @@ export function PinPad() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-10">
+    <div className="flex w-full flex-col items-center gap-6">
       <div
         key={wrong}
         className={clsx('flex gap-4', wrong > 0 && 'animate-shake motion-reduce:animate-none')}
-        aria-label={`PIN ${pin.length}자리 입력됨`}
+        aria-label={`비밀번호 ${pin.length}자리 입력됨`}
         role="status"
       >
         {Array.from({ length: PIN_LENGTH }, (_, i) => (
@@ -39,8 +39,8 @@ export function PinPad() {
           />
         ))}
       </div>
-      <p className="h-5 text-sm text-red" aria-live="polite">
-        {wrong > 0 && !pending ? 'PIN 이 맞지 않아요' : ''}
+      <p className="min-h-5 text-sm text-red" aria-live="polite">
+        {wrong > 0 && !pending ? '비밀번호가 맞지 않아요.' : ''}
       </p>
       <div className="w-full max-w-72">
         <Keypad value={pin} onChange={onChange} maxLength={PIN_LENGTH} kind="code" disabled={pending} />

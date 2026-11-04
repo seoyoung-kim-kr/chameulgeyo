@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "참을게요",
-    short_name: "참을게요",
+    name: "소비신호등",
+    short_name: "소비신호등",
     description: "결제하기 전에 한 번 더, 다음 달 생활비를 보여주는 신호등",
     start_url: "/",
     display: "standalone",

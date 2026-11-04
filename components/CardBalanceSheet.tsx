@@ -8,6 +8,7 @@ import { formatWon } from '@/lib/format'
 import { AMOUNT_MAX } from '@/lib/validation'
 import { Button } from './Button'
 import { Keypad } from './Keypad'
+import { BottomActions, Message } from './Screen'
 
 type Props = {
   open: boolean
@@ -21,9 +22,9 @@ type Props = {
 const MAX_DIGITS = String(AMOUNT_MAX).length
 
 const ERRORS: Record<string, string> = {
-  INVALID: '금액을 다시 확인해 주세요',
-  NO_MONTH: '이번 달 설정이 없어요',
-  DB: '저장하지 못했어요. 잠시 후 다시 시도해 주세요',
+  INVALID: '금액을 다시 확인해 주세요.',
+  NO_MONTH: '이번 달 설정이 없어요.',
+  DB: '저장하지 못했어요.\n잠시 후 다시 시도해 주세요.',
 }
 
 /** 카드사 앱의 이용금액 한 숫자를 옮겨 적는 바텀시트. 키패드는 로그인·가격 입력과 같은 것을 쓴다. */
@@ -74,37 +75,33 @@ export function CardBalanceSheet({ open, onClose, current, confirmMode }: Props)
         aria-labelledby="card-sheet-title"
         aria-hidden={!open}
         className={clsx(
-          'fixed inset-x-0 bottom-0 z-20 rounded-t-[28px] bg-white px-5 pt-5 pb-8 shadow-[0_-8px_30px_rgba(201,56,107,.12)] transition-transform duration-300 motion-reduce:transition-none md:absolute',
+          'fixed inset-x-0 bottom-0 z-20 flex flex-col gap-3 rounded-t-[28px] bg-white px-5 pt-3 pb-8 shadow-[0_-8px_30px_rgba(201,56,107,.12)] transition-transform duration-300 motion-reduce:transition-none md:absolute',
           open ? 'translate-y-0' : 'pointer-events-none translate-y-full',
         )}
       >
-        <div aria-hidden className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
-        <h2 id="card-sheet-title" className="text-lg font-bold">
-          {confirmMode ? '오늘 확정된 카드값' : '현재 카드값'}
-        </h2>
-        <p className="text-xs text-muted">
-          {confirmMode ? '카드 앱의 확정 금액을 그대로 적어 주세요. 쇼핑 예산은 바뀌지 않아요' : '카드 앱의 이번 달 이용금액을 그대로 적어 주세요'}
-        </p>
+        <div aria-hidden className="mx-auto h-1 w-10 rounded-full bg-line" />
+        <div className="flex h-8 items-center">
+          <h2 id="card-sheet-title" className="text-xl font-bold">
+            {confirmMode ? '확정된 카드값' : '현재 카드값'}
+          </h2>
+        </div>
 
-        <p className="mt-4 text-right text-3xl font-bold text-deep" aria-live="polite">
+        <p className="text-right text-3xl font-bold text-deep" aria-live="polite">
           {value === '' ? <span className="text-line">{formatWon(current)}</span> : formatWon(amount)}
           <span className="ml-1 text-base font-normal text-muted">원</span>
         </p>
-        <p className="h-5 text-right text-xs text-muted">{value === '' ? `지금 ${formatWon(current)}원` : ''}</p>
 
-        <div className="my-3">
-          <Keypad value={value} onChange={setValue} maxLength={MAX_DIGITS} extraKey="000" disabled={pending || !open} />
-        </div>
+        <Keypad value={value} onChange={setValue} maxLength={MAX_DIGITS} extraKey="000" disabled={pending || !open} />
 
-        <p className="mb-2 h-5 text-center text-sm text-red" aria-live="polite">
-          {error ?? ''}
-        </p>
-        <Button onClick={save} disabled={!changed || pending}>
-          {pending ? '저장 중…' : confirmMode ? '확정 금액 저장' : '카드값 저장'}
-        </Button>
-        <Button variant="text" className="mt-1 w-full" onClick={close} disabled={pending}>
-          닫기
-        </Button>
+        <BottomActions>
+          <Message>{error && <span className="whitespace-pre-line">{error}</span>}</Message>
+          <Button onClick={save} disabled={!changed || pending}>
+            {pending ? '저장 중…' : '저장'}
+          </Button>
+          <Button variant="text" onClick={close} disabled={pending}>
+            취소
+          </Button>
+        </BottomActions>
       </section>
     </>
   )

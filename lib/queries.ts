@@ -1,6 +1,5 @@
 import 'server-only'
 import { and, asc, desc, eq, sum } from 'drizzle-orm'
-import { redirect } from 'next/navigation'
 import { db } from '@/db'
 import { decisions, fixedExpenses, months, settings } from '@/db/schema'
 import { computeBudget, type Budget } from './budget'
@@ -67,18 +66,23 @@ export type HomeData = {
   settings: Settings
   month: MonthRow
   budget: Budget
-  /** 이번 주기에 참은 돈 합계 (held 전체, 판정 색 무관) */
+  /** 이번 주기에 아낀 돈(안 산 금액) 합계 (held 전체, 판정 색 무관) */
   heldTotal: number
   isCutoff: boolean
   /** 카드값을 마지막으로 옮겨 적은 날로부터 지난 일수 (KST 날짜 기준) */
   cardStaleDays: number
 }
 
-/** 홈·판정 화면 데이터. 이번 주기 설정이 없으면 /setup 으로 보낸다. */
-export async function getHomeData(): Promise<HomeData> {
+/**
+ * 홈·판정 화면 데이터. 이번 주기 설정이 없으면 null.
+ * redirect('/setup') 하지 않는 이유: 그 리다이렉트가 Activity 로 보존된 홈 화면에 남아 있다가,
+ * 설정을 저장하고 홈으로 돌아올 때 되살아나 다시 /setup 으로 튕긴다(2026-11-05 실측).
+ * 호출하는 화면이 null 일 때 무엇을 보여줄지 정한다.
+ */
+export async function getHomeData(): Promise<HomeData | null> {
   const { settings: s, cycle, today } = await getCurrentCycle()
   const month = await loadMonth(cycle.ym)
-  if (!month) redirect('/setup')
+  if (!month) return null
 
   const [held] = await db
     .select({ total: sum(decisions.price) })
@@ -110,7 +114,7 @@ export type DecisionRow = typeof decisions.$inferSelect
 
 export type History = {
   ym: string
-  /** 참은 돈 합계 (held 전체) */
+  /** 아낀 돈(안 산 금액) 합계 (held 전체) */
   heldTotal: number
   /** 그래도 산 돈 합계 (bought 전체) */
   boughtTotal: number

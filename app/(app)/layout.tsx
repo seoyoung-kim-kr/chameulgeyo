@@ -1,4 +1,3 @@
-import { Lace } from '@/components/Lace'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { RefreshOnVisible } from '@/components/RefreshOnVisible'
 import { ToastProvider } from '@/components/Toast'
@@ -10,7 +9,6 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
     <PhoneFrame>
       <ToastProvider>
         <RefreshOnVisible />
-        <Lace />
         {children}
       </ToastProvider>
     </PhoneFrame>
