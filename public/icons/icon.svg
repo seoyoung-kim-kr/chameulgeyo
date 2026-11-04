@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 원본. PNG 는 이 파일을 렌더링해 만든다 (icon-192/512, apple-touch-icon 180, app/favicon.ico).
+       배경을 꽉 채우는 이유: iOS 는 투명 영역을 검게 칠하고, 안드로이드 maskable 은 가운데 80% 원만 남긴다.
+       핑크 원(지름 76%)과 하트가 그 안전 영역 안에 들어간다. -->
+  <rect width="512" height="512" fill="#FFF5F8"/>
+  <circle cx="256" cy="256" r="195" fill="#F0628F"/>
+  <path fill="#FFFFFF" d="M256 368c-6 0-11-2-15-6l-78-76c-29-28-31-73-4-100 25-25 66-24 91 2l6 6 6-6c25-26 66-27 91-2 27 27 25 72-4 100l-78 76c-4 4-9 6-15 6z"/>
+</svg>

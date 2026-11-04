@@ -21,6 +21,8 @@ export const metadata: Metadata = {
   title: "참을게요",
   description: "결제하기 전에 한 번 더, 다음 달 생활비를 보여주는 신호등",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "참을게요" },
+  // /icons/ 아래에 두는 이유: proxy 가 로그인 전 요청을 /login 으로 보내는데 /icons/ 는 예외 경로다
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

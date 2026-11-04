@@ -64,7 +64,7 @@ export function CardBalanceSheet({ open, onClose, current, confirmMode }: Props)
         aria-hidden
         onClick={pending ? undefined : close}
         className={clsx(
-          'fixed inset-0 z-10 bg-ink/30 transition-opacity md:absolute',
+          'fixed inset-0 z-10 bg-ink/30 transition-opacity motion-reduce:transition-none md:absolute',
           open ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
@@ -74,7 +74,7 @@ export function CardBalanceSheet({ open, onClose, current, confirmMode }: Props)
         aria-labelledby="card-sheet-title"
         aria-hidden={!open}
         className={clsx(
-          'fixed inset-x-0 bottom-0 z-20 rounded-t-[28px] bg-white px-5 pt-5 pb-8 shadow-[0_-8px_30px_rgba(201,56,107,.12)] transition-transform duration-300 md:absolute',
+          'fixed inset-x-0 bottom-0 z-20 rounded-t-[28px] bg-white px-5 pt-5 pb-8 shadow-[0_-8px_30px_rgba(201,56,107,.12)] transition-transform duration-300 motion-reduce:transition-none md:absolute',
           open ? 'translate-y-0' : 'pointer-events-none translate-y-full',
         )}
       >
