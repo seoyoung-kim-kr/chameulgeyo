@@ -67,3 +67,15 @@ describe('completeGoogleLogin', () => {
     expect(d.resolveUser).not.toHaveBeenCalled()
   })
 })
+
+describe('googleEnv', () => {
+  it('공백·줄바꿈(\\r 포함)은 위치와 상관없이 지운다', async () => {
+    const { googleEnv } = await import('./google')
+    process.env.GOOGLE_CLIENT_ID = ' 123-abc\r\n.apps.googleusercontent.com\n'
+    process.env.GOOGLE_CLIENT_SECRET = 'sec\nret '
+    expect(googleEnv()).toEqual({ clientId: '123-abc.apps.googleusercontent.com', clientSecret: 'secret' })
+    delete process.env.GOOGLE_CLIENT_ID
+    expect(() => googleEnv()).toThrow()
+    delete process.env.GOOGLE_CLIENT_SECRET
+  })
+})

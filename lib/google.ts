@@ -83,9 +83,10 @@ export function isOwner(profile: GoogleProfile, ownerEmail: string | undefined):
 }
 
 export function googleEnv(): { clientId: string; clientSecret: string } {
-  // 콘솔에서 붙여넣을 때 섞이는 앞뒤 공백·줄바꿈은 잘라 낸다 (섞이면 구글이 invalid_client 를 낸다)
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim()
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
+  // 콘솔에서 붙여넣을 때 섞이는 공백·줄바꿈(\r 포함)은 위치와 상관없이 지운다. 클라이언트 ID·비밀에는 공백이 없다
+  // (섞이면 URL 에 %0A·%0D 가 들어가 구글이 invalid_client 를 낸다. 2026-11-05 미리보기에서 실제로 겪음)
+  const clientId = process.env.GOOGLE_CLIENT_ID?.replace(/\s/g, '')
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.replace(/\s/g, '')
   if (!clientId || !clientSecret) throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set')
   return { clientId, clientSecret }
 }
