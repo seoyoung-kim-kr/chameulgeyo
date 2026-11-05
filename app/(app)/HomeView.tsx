@@ -10,7 +10,7 @@ import { formatWon } from '@/lib/format'
 const STALE_DAYS = 3
 
 /** 가린 금액 자리. 자릿수가 드러나지 않게 길이를 고정한다 */
-const MASK = '••••••'
+export const MASK = '••••••'
 
 export type HomeViewProps = {
   ym: string
@@ -42,9 +42,11 @@ export type HomeViewProps = {
   heldTotal: number
   /** 월급·고정지출·카드값을 가린다 (설정의 스위치) */
   hideAmounts: boolean
+  /** 저장한 지난 주기 중 가장 최근 것. 있으면 "지난 달" 링크를 보인다 */
+  previousYm: string | null
 }
 
-const range = (a: string, b: string) => `${shortDate(a)}~${shortDate(b)}`
+export const range = (a: string, b: string) => `${shortDate(a)}~${shortDate(b)}`
 
 export function HomeView(p: HomeViewProps) {
   const stale = p.nextBillStaleDays === null || p.nextBillStaleDays >= STALE_DAYS
@@ -175,6 +177,11 @@ export function HomeView(p: HomeViewProps) {
           사기 전에 확인하기
         </Link>
         <div className="flex justify-center gap-2">
+          {p.previousYm && (
+            <Link href={`/cycle/${p.previousYm}`} className={buttonClass('text')}>
+              지난 달
+            </Link>
+          )}
           <Link href="/history" className={buttonClass('text')}>
             기록
           </Link>
@@ -187,7 +194,7 @@ export function HomeView(p: HomeViewProps) {
   )
 }
 
-function Term({ label, value }: { label: string; value: string }) {
+export function Term({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <dt className="truncate text-xs text-muted">{label}</dt>

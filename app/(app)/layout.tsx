@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { RefreshOnVisible } from '@/components/RefreshOnVisible'
 import { ToastProvider } from '@/components/Toast'
@@ -8,7 +9,10 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
   return (
     <PhoneFrame>
       <ToastProvider>
-        <RefreshOnVisible />
+        {/* usePathname 은 동적 세그먼트(/cycle/[ym])에서 요청 시점 값이라 경계 안에 둔다. 아무것도 그리지 않는다 */}
+        <Suspense fallback={null}>
+          <RefreshOnVisible />
+        </Suspense>
         {children}
       </ToastProvider>
     </PhoneFrame>

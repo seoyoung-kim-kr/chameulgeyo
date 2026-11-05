@@ -44,6 +44,7 @@ async function HomeLoader() {
       emergencyAmount={month.emergencyAmount}
       heldTotal={home.heldTotal}
       hideAmounts={home.settings.hideAmounts}
+      previousYm={home.previousYm}
     />
   )
 }
