@@ -1,6 +1,6 @@
 # 소비신호등
 
-결제하기 전에 가격 하나를 넣으면, 다음 달 생활비가 어떻게 되는지 빨강/초록 신호등으로 보여주는 1인용 웹앱.
+결제하기 전에 가격 하나를 넣으면, 다음 달 생활비가 어떻게 되는지 빨강/초록 신호등으로 보여주는 웹앱. 구글 계정으로 로그인하고, 사용자마다 데이터가 나뉜다.
 
 - 서비스: https://sobi.seoyoung.dev
 
@@ -10,12 +10,14 @@
 
 | 경로 | 화면 | 하는 일 |
 | --- | --- | --- |
-| `/login` | 비밀번호 | 6자리 숫자(`APP_PIN`). 화면 키패드와 PC 키보드 모두 받는다 |
+| `/login` | 로그인 | "Google 계정으로 로그인" 버튼 하나. 실패하면 `?error=1`로 돌아와 안내 |
 | `/` | 홈 (N월 지갑) | 이번 주기에 쓸 수 있는 돈, 이번·다음 카드값, 다음 주기 예상 현금, 쇼핑 예산·생활비·비상금, 확정일·미분류 안내. 이번 주기 설정 전이면 같은 자리에서 설정 마법사 |
 | `/setup` | 월 설정 | 날짜(월급일·확정일·카드 출금일) → 수입과 지출(고정지출 결제 수단, 이번·다음 카드값) → 예산 나누기 |
 | `/card` | 카드값 | 이번 주기 출금 대금(출금일·출금 완료)과 다음 주기 출금 예정 대금(출금일·카드 고정지출 포함 여부) |
 | `/check` | 사기 전에 확인 | 가격 입력 → 빨강/초록 → 안 산다 / 그래도 산다 |
 | `/history` | 기록 | 월별 아낀 돈·산 돈 합계, 전체/안 샀어요/샀어요 필터, 산 기록 환불·취소 |
+| `/cycle/[ym]` | 지난 달 (읽기 전용) | 그 주기의 쓸 수 있던 돈, 쇼핑 예산·생활비·비상금, 아낀 돈·산 돈, 앞뒤 달 이동. 홈 하단 "지난 달"(저장한 지난 주기가 있을 때만) |
+| `/auth/google`, `/auth/google/callback` | (Route Handler) | 구글 로그인 시작·콜백 |
 
 ## 렌더링: 전부 "정적 셸 + 스트리밍"
 
@@ -29,6 +31,8 @@ Next.js 16 Cache Components 위에서 만든다. 화면 뼈대(프레임·제목
 | `/setup` | ◐ 부분 프리렌더 | 세션, 이번 주기(없으면 직전 주기) 설정 |
 | `/check` | ◐ 부분 프리렌더 | 세션, 현재 쇼핑 가능액 |
 | `/history` | ◐ 부분 프리렌더 | 세션, `?ym=` 주기의 판정 기록 |
+| `/cycle/[ym]` | ◐ 부분 프리렌더 | 세션, 그 주기 Month·카드 대금·판정 합계 (제목까지 경계 안) |
+| `/auth/google/*` | ƒ 동적 | 요청마다 (OAuth state·쿠키) |
 
 **데이터 캐시를 쓰지 않는 이유.** 이 앱에서 가장 나쁜 실패는 오래된 카드값으로 초록 신호가 뜨는 것이다. 그래서 `use cache`도, 브라우저에 값을 남기는 `use cache: private`도 쓰지 않는다. 서버 액션이 성공하면 `refresh()`로 현재 화면을 다시 받는다.
 
@@ -36,7 +40,11 @@ Next.js 16 Cache Components 위에서 만든다. 화면 뼈대(프레임·제목
 
 **Activity와 최신성.** Cache Components는 떠난 화면을 언마운트하지 않고 숨긴다. `<Link>`로 돌아오면 Next가 데이터를 다시 받지만, 브라우저 뒤로 가기와 백그라운드 복귀는 숨겨 둔 화면을 그대로 보여준다. `RefreshOnVisible`이 이 두 경우에 `router.refresh()`를 부른다. 판정 화면과 카드값 시트처럼 한 번 쓰고 끝나는 상태는 화면이 숨겨질 때 직접 초기화한다.
 
-**인증.** `proxy.ts`는 쿠키 서명만 보고 미로그인을 `/login`으로 보낸다(DB 조회 없음). 실제 검증은 조회 함수(`lib/queries.ts`)와 모든 서버 액션(`withSession`)이 따로 한다. 서버 액션 요청은 proxy를 건너뛰어, 세션이 만료되면 리다이렉트 대신 `UNAUTHORIZED`를 돌려준다.
+**인증.** 구글 OAuth(PKCE, scope `openid email profile`, `lib/google-oauth.ts`에 직접 구현)로 계정을 확인하고, 세션은 jose로 서명한 httpOnly 쿠키(`cg_session`, 30일, `sub` = users.id)다. `/auth/google`이 state·code_verifier를 10분짜리 쿠키에 두고 구글로 보내고, `/auth/google/callback`이 state를 비교한 뒤 code를 교환해 ID 토큰(발급자·대상·만료 확인)으로 사용자를 찾거나 만든다(`lib/google.ts`, `lib/users.ts`). `proxy.ts`는 쿠키 서명만 보고 미로그인을 `/login`으로 보낸다(DB 조회 없음, `/auth/*`는 통과). 실제 검증은 조회 함수(`lib/queries.ts`의 `requireUserId`)와 모든 서버 액션(`withUser`)이 따로 한다. 서버 액션 요청은 proxy를 건너뛰어, 세션이 만료되면 리다이렉트 대신 `UNAUTHORIZED`를 돌려준다. 로그아웃은 설정 첫 단계(기본 설정) 맨 아래.
+
+**사용자 분리.** settings·months·card_bills·decisions에 `user_id`가 있고(fixed_expenses는 months를 통해 소속), `lib/ledger.ts`·`lib/decisions.ts`·`lib/bills.ts`의 모든 함수가 userId를 필수 인자로 받아 그 사용자 행만 읽고 쓴다. 남의 판정 기록 id로 취소하면 `NOT_FOUND`. `npm run db:check-isolation`이 확인한다.
+
+**지난 달.** months에 저장할 때의 주기 기간(`cycle_start`·`cycle_end`)을 둔다. 지난 주기는 그 기간으로 지금 DB를 다시 계산한다(그 당시 화면의 사진이 아니라, 나중에 고친 카드값·환불이 반영된 값). 준비금을 볼 범위도 그 주기 시작일 기준이다.
 
 ## 계산식
 
@@ -75,7 +83,8 @@ Next.js 16 Cache Components 위에서 만든다. 화면 뼈대(프레임·제목
 | 이름 | 내용 |
 | --- | --- |
 | `DATABASE_URL` | Neon Postgres 연결 문자열. Vercel Marketplace 연동 시 자동으로 들어간다 |
-| `APP_PIN` | 로그인 PIN. 숫자 6자리만 허용하며, 따옴표나 공백이 섞이면 어떤 PIN도 통과하지 않는다 |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 구글 클라우드 콘솔 OAuth 클라이언트(웹 애플리케이션) |
+| `OWNER_EMAIL` | 기존(PIN 시절) 데이터를 연결할 구글 이메일. 확인된 이메일이 같으면 첫 로그인 때 그 데이터(users.id 1)에 연결된다. 연결 뒤에는 지워도 된다 |
 | `SESSION_SECRET` | 세션 쿠키 서명 키. 32자 이상 임의 문자열(`openssl rand -base64 32`). 바꾸면 모든 로그인이 풀린다 |
 
 ## 로컬 실행
@@ -96,11 +105,17 @@ npm run dev
 | `npm run db:smoke` | DB 연결·트랜잭션 확인 |
 | `npm run db:check-choose` | 같은 id 로 "그래도 산다"를 여러 번(순차·동시) 보내도 카드값이 한 번만 오르는지 확인. dev DB 전용, 끝나면 되돌림 |
 | `npm run db:check-cancel` | 청구 전 취소(구매 전으로 원복)와 출금 후 환불(다음 청구에서 차감)이 한 번씩만 반영되는지 확인. dev DB 전용, 끝나면 되돌림 |
+| `npm run db:check-isolation` | 임시 사용자 둘로 서로의 주기·카드값·기록을 읽거나 바꾸지 못하는지, 구글 계정 → 사용자 연결(OWNER_EMAIL 연결은 트랜잭션 안에서만)을 확인. dev DB 전용, 끝나면 지움 |
+| `npm run dev:session -- <id>` | 로컬 화면 확인용 세션 쿠키 값 출력 (구글 로그인 없이). 로컬에서만 |
+
+`db:check-choose`·`db:check-cancel`은 `CHECK_USER_ID`(기본 1) 사용자의 이번 주기 데이터로 돈다.
 
 ## 배포
 
 - **리전.** Vercel 함수는 `vercel.json`의 `regions`로 싱가포르(`sin1`)에 두고, Neon도 같은 aws-ap-southeast-1을 쓴다. 한 요청 안에서 DB를 여러 번 왕복하므로 둘을 같은 리전에 두는 게 가장 중요하다.
 - **DB 마이그레이션.** Vercel은 `build` 대신 `vercel-build`를 실행하고, 여기서 `db:migrate`를 먼저 돌린 뒤 `next build`를 한다. Neon 연동이 미리보기 배포마다 기본 브랜치를 복사해 새 DB 브랜치를 만들기 때문에, 이 단계가 없으면 미리보기 DB에 테이블이 없어 홈이 500을 낸다. `DATABASE_URL`이 없으면 빌드가 실패한다. production DB에도 배포할 때마다 같은 방식으로 적용된다.
+- **구글 로그인 설정.** 구글 클라우드 콘솔 → API 및 서비스 → OAuth 동의 화면(외부, 테스트 모드: 테스트 사용자로 등록한 계정만 로그인된다. 누구나 쓰게 하려면 "프로덕션으로 게시") → 사용자 인증 정보 → OAuth 클라이언트 ID(웹 애플리케이션). 승인된 리디렉션 URI에 `https://sobi.seoyoung.dev/auth/google/callback`, 고정 미리보기 도메인의 `/auth/google/callback`, `http://localhost:3000/auth/google/callback`을 넣는다. 구글은 와일드카드를 받지 않아 Vercel의 배포마다 바뀌는 미리보기 주소에서는 로그인되지 않는다.
+- **PIN → 구글 로그인 전환 순서.** ① Vercel 환경변수에 `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`·`OWNER_EMAIL`을 먼저 넣는다 ② 고정 미리보기 도메인에서 로그인 → 기존 데이터가 보이는지 확인 ③ 머지. 머지하면 PIN 쿠키는 전부 무효가 되어 기기마다 한 번 다시 로그인한다. 미리보기 DB는 production을 복사한 Neon 브랜치라 ②까지는 production DB가 그대로다. **머지 뒤에는 Vercel Instant Rollback만으로 되돌릴 수 없다**: 0004가 `settings.id`를 지우고 유니크 제약을 바꿔, 이전 코드는 DB를 읽다 실패한다. 머지 직전에 Neon 콘솔에서 production 브랜치의 백업 브랜치를 만들어 두고, 되돌릴 때는 코드 롤백과 DB 복원을 함께 한다. 확인 뒤 `APP_PIN`은 지운다.
 - **PWA.** manifest와 아이콘만 둔다(서비스워커 없음). 아이폰은 Safari → 공유 → "홈 화면에 추가". 아이콘 원본은 `public/icons/icon.svg`다.
 
 ## 성능 실측

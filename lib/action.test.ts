@@ -1,22 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const getSession = vi.fn<() => Promise<boolean>>()
-vi.mock('./session', () => ({ getSession: () => getSession() }))
+const getUserId = vi.fn<() => Promise<number | null>>()
+vi.mock('./session', () => ({ getUserId: () => getUserId() }))
 
-const { withSession } = await import('./action')
+const { withUser } = await import('./action')
 
-describe('withSession', () => {
-  beforeEach(() => getSession.mockReset())
+describe('withUser', () => {
+  beforeEach(() => getUserId.mockReset())
 
   it('세션이 없으면 본문을 실행하지 않고 UNAUTHORIZED', async () => {
-    getSession.mockResolvedValue(false)
+    getUserId.mockResolvedValue(null)
     const fn = vi.fn(async () => ({ ok: true as const, data: 1 }))
-    expect(await withSession(fn)).toEqual({ ok: false, error: 'UNAUTHORIZED' })
+    expect(await withUser(fn)).toEqual({ ok: false, error: 'UNAUTHORIZED' })
     expect(fn).not.toHaveBeenCalled()
   })
 
-  it('세션이 있으면 본문 결과를 그대로', async () => {
-    getSession.mockResolvedValue(true)
-    expect(await withSession(async () => ({ ok: true as const, data: 1 }))).toEqual({ ok: true, data: 1 })
+  it('세션이 있으면 그 사용자 id 로 본문을 실행', async () => {
+    getUserId.mockResolvedValue(3)
+    const fn = vi.fn(async (id: number) => ({ ok: true as const, data: id }))
+    expect(await withUser(fn)).toEqual({ ok: true, data: 3 })
+    expect(fn).toHaveBeenCalledWith(3)
   })
 })

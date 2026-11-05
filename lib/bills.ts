@@ -1,5 +1,5 @@
 // 카드 대금 쓰기. 앱은 급여 주기마다 대금을 한 건으로 유지한다 (카드 한 장 기준).
-// 세션 검사 없음: 서버 액션(withSession) 안에서만 부른다.
+// 세션 검사 없음: 서버 액션(withUser) 안에서만 부르고, 그 사용자 id 로만 쓴다.
 import { and, eq, gte, lte, ne } from 'drizzle-orm'
 import { cardBills } from '@/db/schema'
 import { inCycle, type Cycle } from './cycle'
@@ -19,8 +19,14 @@ export type BillPatch = {
  * - 주기 안에 다른 대금이 더 있으면 지운다 (한 주기 한 건 → 같은 대금이 두 번 빠지지 않게)
  * - 금액이나 출금일이 바뀌었을 때만 updated_at 을 새로 찍는다 (카드 앱 숫자를 옮겨 적은 시각)
  */
-export async function upsertCycleBill(q: Executor, cycle: Cycle, defaultDue: string, patch: BillPatch): Promise<'ok' | 'OUT_OF_CYCLE'> {
-  const [existing] = await readBills(q, cycle.start, cycle.end)
+export async function upsertCycleBill(
+  q: Executor,
+  userId: number,
+  cycle: Cycle,
+  defaultDue: string,
+  patch: BillPatch,
+): Promise<'ok' | 'OUT_OF_CYCLE'> {
+  const [existing] = await readBills(q, userId, cycle.start, cycle.end)
   const dueDate = patch.dueDate ?? existing?.dueDate ?? defaultDue
   if (!inCycle(dueDate, cycle)) return 'OUT_OF_CYCLE'
 
@@ -32,13 +38,20 @@ export async function upsertCycleBill(q: Executor, cycle: Cycle, defaultDue: str
   if (existing) {
     await q
       .delete(cardBills)
-      .where(and(gte(cardBills.dueDate, cycle.start), lte(cardBills.dueDate, cycle.end), ne(cardBills.id, existing.id)))
+      .where(
+        and(
+          eq(cardBills.userId, userId),
+          gte(cardBills.dueDate, cycle.start),
+          lte(cardBills.dueDate, cycle.end),
+          ne(cardBills.id, existing.id),
+        ),
+      )
     await q
       .update(cardBills)
       .set({ dueDate, amount, paidAmount, includesCardFixed, ...(changed ? { updatedAt: new Date() } : {}) })
-      .where(eq(cardBills.id, existing.id))
+      .where(and(eq(cardBills.id, existing.id), eq(cardBills.userId, userId)))
   } else if (amount > 0) {
-    await q.insert(cardBills).values({ dueDate, amount, paidAmount, includesCardFixed })
+    await q.insert(cardBills).values({ userId, dueDate, amount, paidAmount, includesCardFixed })
   }
   return 'ok'
 }

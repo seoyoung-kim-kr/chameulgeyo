@@ -6,12 +6,13 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { db } from '@/db'
 import { fixedExpenses, months, settings } from '@/db/schema'
-import { withSession, type ActionResult } from '@/lib/action'
+import { withUser, type ActionResult } from '@/lib/action'
 import { upsertCycleBill } from '@/lib/bills'
 import { computeBudget } from '@/lib/budget'
 import { computeCashflow } from '@/lib/cashflow'
 import { cardDueDate, cycleFor, nextCycle, todayKst } from '@/lib/cycle'
 import { readReserves } from '@/lib/ledger'
+import { endSession } from '@/lib/session'
 import { saveMonthSchema, type SaveMonthInput } from '@/lib/validation'
 
 /**
@@ -24,7 +25,7 @@ import { saveMonthSchema, type SaveMonthInput } from '@/lib/validation'
  * 마법사 단계는 저장 후 defaults 가 바뀌어 key 로 새로 마운트되므로 따로 되돌리지 않는다.
  */
 export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
-  return withSession(async () => {
+  return withUser(async (userId) => {
     const parsed = saveMonthSchema.safeParse(input)
     if (!parsed.success) return { ok: false, error: 'INVALID' }
     const v = parsed.data
@@ -37,17 +38,17 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
       await db.transaction(async (tx) => {
         await tx
           .insert(settings)
-          .values({ id: 1, payDay: v.payDay, cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay })
+          .values({ userId, payDay: v.payDay, cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay })
           .onConflictDoUpdate({
-            target: settings.id,
+            target: settings.userId,
             set: { payDay: v.payDay, cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay },
           })
 
-        await upsertCycleBill(tx, cycle, cardDueDate(cycle, v.cardPayDay), { amount: v.thisBill })
-        await upsertCycleBill(tx, next, cardDueDate(next, v.cardPayDay), { amount: v.nextBill })
+        await upsertCycleBill(tx, userId, cycle, cardDueDate(cycle, v.cardPayDay), { amount: v.thisBill })
+        await upsertCycleBill(tx, userId, next, cardDueDate(next, v.cardPayDay), { amount: v.nextBill })
 
         // 쇼핑 예산 스냅샷: 이번 주기 현금에서 생활비·비상금을 뺀 값 (산 것은 아직 없다고 본다)
-        const reserves = await readReserves(tx, { cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay }, cycle, next)
+        const reserves = await readReserves(tx, userId, { cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay }, cycle, next)
         const { cash } = computeCashflow({
           salary: v.salary,
           fixed: v.fixed.map((f) => ({ amount: f.amount, method: f.method })),
@@ -67,7 +68,10 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
         const [month] = await tx
           .insert(months)
           .values({
+            userId,
             ym: cycle.ym,
+            cycleStart: cycle.start,
+            cycleEnd: cycle.end,
             salary: v.salary,
             // (구) 컬럼. 계산에는 쓰지 않고, 이 주기의 다음 대금을 적어 둔다
             cardBalance: v.nextBill,
@@ -76,8 +80,9 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
             shoppingBudgetStart: shopping,
           })
           .onConflictDoUpdate({
-            target: months.ym,
-            set: { salary: v.salary, cardBalance: v.nextBill, livingTarget: v.livingTarget, emergencyAmount: v.emergencyAmount },
+            target: [months.userId, months.ym],
+            // 기간도 다시 적는다: 월급일을 바꿔 저장하면 이 주기 기간이 바뀐다
+            set: { cycleStart: cycle.start, cycleEnd: cycle.end, salary: v.salary, cardBalance: v.nextBill, livingTarget: v.livingTarget, emergencyAmount: v.emergencyAmount },
           })
           .returning({ id: months.id })
 
@@ -99,14 +104,14 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
 
 /** 홈에서 월급·고정지출·카드값을 가릴지. 누르는 즉시 저장한다 (월 설정 저장과 별개) */
 export async function setHideAmounts(hide: boolean): Promise<ActionResult> {
-  return withSession(async () => {
+  return withUser(async (userId) => {
     const parsed = z.boolean().safeParse(hide)
     if (!parsed.success) return { ok: false, error: 'INVALID' }
     try {
       await db
         .insert(settings)
-        .values({ id: 1, hideAmounts: parsed.data })
-        .onConflictDoUpdate({ target: settings.id, set: { hideAmounts: parsed.data } })
+        .values({ userId, hideAmounts: parsed.data })
+        .onConflictDoUpdate({ target: settings.userId, set: { hideAmounts: parsed.data } })
     } catch (e) {
       console.error('[setHideAmounts]', e)
       return { ok: false, error: 'DB' }
@@ -114,4 +119,10 @@ export async function setHideAmounts(hide: boolean): Promise<ActionResult> {
     refresh()
     return { ok: true, data: undefined }
   })
+}
+
+/** 로그아웃: 이 기기의 세션 쿠키만 지운다. 이미 만료됐어도 로그인 화면으로 보낸다 */
+export async function logout(): Promise<void> {
+  await endSession()
+  redirect('/login')
 }

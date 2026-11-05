@@ -29,6 +29,13 @@
       "when": 1793837562896,
       "tag": "0003_hide_amounts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793844052747,
+      "tag": "0004_users_and_cycle_dates",
+      "breakpoints": true
     }
   ]
 }

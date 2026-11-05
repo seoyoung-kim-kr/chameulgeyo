@@ -14,7 +14,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
     "db:check-choose": "tsx --env-file=.env.local scripts/choose-idempotency.ts",
-    "db:check-cancel": "tsx --env-file=.env.local scripts/cancel-check.ts"
+    "db:check-cancel": "tsx --env-file=.env.local scripts/cancel-check.ts",
+    "db:check-isolation": "tsx --env-file=.env.local scripts/isolation-check.ts",
+    "dev:session": "tsx --env-file-if-exists=.env.local scripts/dev-session.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

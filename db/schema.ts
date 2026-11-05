@@ -1,13 +1,35 @@
 import { sql } from 'drizzle-orm'
-import { boolean, check, date, index, integer, pgTable, serial, timestamp, varchar } from 'drizzle-orm/pg-core'
+import { boolean, check, date, index, integer, pgTable, serial, timestamp, unique, varchar } from 'drizzle-orm/pg-core'
 
 // 금액은 전부 원 단위 정수(int4, 최대 약 21억).
+// 사용자 데이터는 전부 user_id 로 나뉜다. fixed_expenses 는 months 를 통해 소속된다.
 
-/** 단일 행(id = 1). 월급일·카드 확정일·카드 출금일 설정. */
+/**
+ * 구글 계정 하나 = 사용자 하나. google_sub 는 구글이 주는 변하지 않는 계정 id.
+ * google_sub 가 null 인 행은 0004 마이그레이션이 기존(PIN 시절) 데이터를 묶어 둔 주인 없는 사용자다 (id 1).
+ * OWNER_EMAIL 계정으로 처음 로그인할 때 그 계정에 연결된다 (lib/users.ts).
+ */
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  googleSub: varchar('google_sub', { length: 255 }).unique(),
+  email: varchar('email', { length: 320 }),
+  name: varchar('name', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+})
+
+const userRef = () =>
+  integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' })
+
+/** 사용자당 한 행. 월급일·카드 확정일·카드 출금일 설정. */
 export const settings = pgTable(
   'settings',
   {
-    id: integer('id').primaryKey().default(1),
+    userId: integer('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
     payDay: integer('pay_day').notNull().default(5),
     cardCutoffDay: integer('card_cutoff_day').notNull().default(24),
     /** 카드 대금 출금일. 새 대금의 기본 출금일 제안에만 쓴다 (실제 출금일은 card_bills.due_date) */
@@ -16,19 +38,25 @@ export const settings = pgTable(
     hideAmounts: boolean('hide_amounts').notNull().default(false),
   },
   (t) => [
-    check('settings_single_row', sql`${t.id} = 1`),
     check('settings_pay_day_range', sql`${t.payDay} between 1 and 31`),
     check('settings_cutoff_day_range', sql`${t.cardCutoffDay} between 1 and 31`),
     check('settings_card_pay_day_range', sql`${t.cardPayDay} between 1 and 31`),
   ],
 )
 
-/** 예산 주기 하나 (월급일 ~ 다음 월급일 전날). ym = 주기 시작일이 속한 달. */
+/** 예산 주기 하나 (월급일 ~ 다음 월급일 전날). ym = 주기 시작일이 속한 달. 사용자마다 ym 하나. */
 export const months = pgTable(
   'months',
   {
     id: serial('id').primaryKey(),
-    ym: varchar('ym', { length: 7 }).notNull().unique(),
+    userId: userRef(),
+    ym: varchar('ym', { length: 7 }).notNull(),
+    /**
+     * 저장할 때의 주기 기간. 지난 주기를 볼 때 쓴다 (월급일을 나중에 바꾸면 지금 월급일로 다시 계산한 기간과 달라진다).
+     * 0004 이전 행은 그때의 월급일로 채웠다.
+     */
+    cycleStart: date('cycle_start', { mode: 'string' }).notNull(),
+    cycleEnd: date('cycle_end', { mode: 'string' }).notNull(),
     salary: integer('salary').notNull(),
     /**
      * (구) 카드 이용금액 한 숫자. 0001 마이그레이션에서 card_bills 로 옮겼고 계산에는 더 쓰지 않는다.
@@ -46,6 +74,7 @@ export const months = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    unique('months_user_ym_unique').on(t.userId, t.ym),
     check('months_ym_format', sql`${t.ym} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
     check('months_amounts_nonneg', sql`${t.salary} >= 0 and ${t.cardBalance} >= 0 and ${t.livingTarget} >= 0 and ${t.emergencyAmount} >= 0`),
   ],
@@ -73,13 +102,14 @@ export const fixedExpenses = pgTable(
 
 /**
  * 카드 대금. 실제 출금(예정)일 기준으로 어느 급여 주기의 현금에서 빠지는지 정한다 (사용월·청구월과 무관).
- * 출금일 하나에 한 행. 앱에서 "산다"를 고르면 다음 주기 대금의 amount 에 더한다.
+ * 사용자마다 출금일 하나에 한 행. 앱에서 "산다"를 고르면 다음 주기 대금의 amount 에 더한다.
  */
 export const cardBills = pgTable(
   'card_bills',
   {
     id: serial('id').primaryKey(),
-    dueDate: date('due_date', { mode: 'string' }).notNull().unique(),
+    userId: userRef(),
+    dueDate: date('due_date', { mode: 'string' }).notNull(),
     /** 청구(예정)액 */
     amount: integer('amount').notNull(),
     /** 이미 출금된 금액 */
@@ -90,6 +120,7 @@ export const cardBills = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    unique('card_bills_user_due_unique').on(t.userId, t.dueDate),
     check('card_bills_amount_nonneg', sql`${t.amount} >= 0`),
     check('card_bills_paid_range', sql`${t.paidAmount} >= 0`),
   ],
@@ -100,6 +131,8 @@ export const decisions = pgTable(
   'decisions',
   {
     id: varchar('id', { length: 21 }).primaryKey(),
+    /** months 를 거치지 않고 거른다 (준비금 계산은 주기를 넘어 구매를 훑는다) */
+    userId: userRef(),
     monthId: integer('month_id')
       .notNull()
       .references(() => months.id, { onDelete: 'cascade' }),
@@ -123,6 +156,7 @@ export const decisions = pgTable(
   },
   (t) => [
     index('decisions_month_idx').on(t.monthId),
+    index('decisions_user_decided_idx').on(t.userId, t.decidedAt),
     check('decisions_cancel_bought_only', sql`${t.canceledAt} is null or ${t.choice} = 'bought'`),
     check('decisions_verdict', sql`${t.verdict} in ('red', 'green')`),
     check('decisions_choice', sql`${t.choice} in ('held', 'bought')`),

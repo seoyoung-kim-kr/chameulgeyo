@@ -1,41 +1,53 @@
 import 'server-only'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import { decisions, months, settings } from '@/db/schema'
 import { cycleFor, daysBetween, isCutoffDay, nextCycle, prevYm, todayKst, type Cycle } from './cycle'
 import type { Reserve } from './cashflow'
-import { DEFAULT_SETTINGS, readBills, readLedger, readMonth, readReserves, readSettings, type CardBillRow, type Ledger, type MonthRow, type Settings } from './ledger'
-import { requireSession } from './session'
+import {
+  DEFAULT_SETTINGS,
+  readBills,
+  readLedger,
+  readLedgerByYm,
+  readMonth,
+  readReserves,
+  readSettings,
+  type CardBillRow,
+  type Ledger,
+  type MonthRow,
+  type Settings,
+} from './ledger'
+import { requireUserId } from './session'
 
-// 화면용 조회 함수. 전부 첫 줄에서 requireSession() 을 부른다 (proxy 는 낙관적 검사일 뿐).
+// 화면용 조회 함수. 전부 첫 줄에서 requireUserId() 를 부르고 그 사용자 행만 읽는다 (proxy 는 낙관적 검사일 뿐).
 // cookies() 를 먼저 읽으므로 호출하는 컴포넌트는 <Suspense> 안에 있어야 한다.
 
 export type { CardBillRow, MonthRow, Settings }
 
-async function loadSettings(): Promise<Settings> {
-  const row = await readSettings(db)
+/** 설정 행이 없으면 기본값(월급일 5, 확정일 24, 출금일 5)으로 만든다. */
+async function loadSettings(userId: number): Promise<Settings> {
+  const row = await readSettings(db, userId)
   if (row) return row
-  await db.insert(settings).values({ id: 1, ...DEFAULT_SETTINGS }).onConflictDoNothing()
+  await db.insert(settings).values({ userId, ...DEFAULT_SETTINGS }).onConflictDoNothing()
   return DEFAULT_SETTINGS
 }
 
-/** 설정 행이 없으면 기본값(월급일 5, 확정일 24, 출금일 5)으로 만든다. */
-export async function getSettings(): Promise<Settings> {
-  await requireSession()
-  return loadSettings()
-}
-
-export async function getCurrentCycle(): Promise<{ settings: Settings; cycle: Cycle; next: Cycle; today: string }> {
-  await requireSession()
-  const s = await loadSettings()
+async function currentCycle(userId: number): Promise<{ settings: Settings; cycle: Cycle; next: Cycle; today: string }> {
+  const s = await loadSettings(userId)
   const today = todayKst()
   const cycle = cycleFor(today, s.payDay)
   return { settings: s, cycle, next: nextCycle(cycle, s.payDay), today }
 }
 
-export async function getMonthByYm(ym: string): Promise<MonthRow | null> {
-  await requireSession()
-  return readMonth(db, ym)
+/** 이 사용자가 저장한 주기 중 ym 바로 앞 주기 (없으면 null) */
+async function previousYm(userId: number, ym: string): Promise<string | null> {
+  const [row] = await db
+    .select({ ym: months.ym })
+    .from(months)
+    .where(and(eq(months.userId, userId), lt(months.ym, ym)))
+    .orderBy(desc(months.ym))
+    .limit(1)
+  return row?.ym ?? null
 }
 
 /**
@@ -53,12 +65,13 @@ export async function getSetupDefaults(): Promise<{
   nextBill: CardBillRow | null
   reserves: Reserve[]
 }> {
-  const { settings: s, cycle, next, today } = await getCurrentCycle()
-  const current = await readMonth(db, cycle.ym)
-  const previous = current ? null : await readMonth(db, prevYm(cycle.ym))
-  const [thisBill = null] = await readBills(db, cycle.start, cycle.end)
-  const [nextBill = null] = await readBills(db, next.start, next.end)
-  const reserves = await readReserves(db, s, cycle, next)
+  const userId = await requireUserId()
+  const { settings: s, cycle, next, today } = await currentCycle(userId)
+  const current = await readMonth(db, userId, cycle.ym)
+  const previous = current ? null : await readMonth(db, userId, prevYm(cycle.ym))
+  const [thisBill = null] = await readBills(db, userId, cycle.start, cycle.end)
+  const [nextBill = null] = await readBills(db, userId, next.start, next.end)
+  const reserves = await readReserves(db, userId, s, cycle, next)
   return { settings: s, cycle, next, today, current, previous, thisBill, nextBill, reserves }
 }
 
@@ -67,6 +80,8 @@ export type HomeData = Ledger & {
   isCutoff: boolean
   /** 다음 대금을 카드 앱 숫자로 마지막에 옮겨 적은 날로부터 지난 일수 (없으면 null) */
   nextBillStaleDays: number | null
+  /** 저장한 지난 주기 중 가장 최근 것 (홈의 "지난 달" 링크, 없으면 null) */
+  previousYm: string | null
 }
 
 /**
@@ -76,9 +91,9 @@ export type HomeData = Ledger & {
  * 호출하는 화면이 null 일 때 무엇을 보여줄지 정한다.
  */
 export async function getHomeData(): Promise<HomeData | null> {
-  await requireSession()
+  const userId = await requireUserId()
   const today = todayKst()
-  const ledger = await readLedger(db, today)
+  const ledger = await readLedger(db, userId, today)
   if (!ledger) return null
   const nextBill = ledger.bills.find((b) => b.dueDate >= ledger.next.start)
   return {
@@ -86,6 +101,7 @@ export async function getHomeData(): Promise<HomeData | null> {
     today,
     isCutoff: isCutoffDay(today, ledger.settings.cardCutoffDay),
     nextBillStaleDays: nextBill ? Math.max(daysBetween(todayKst(nextBill.updatedAt), today), 0) : null,
+    previousYm: await previousYm(userId, ledger.cycle.ym),
   }
 }
 
@@ -98,8 +114,8 @@ export async function getCardBills(): Promise<{
   nextBill: CardBillRow | null
   cardFixed: number
 } | null> {
-  await requireSession()
-  const ledger = await readLedger(db, todayKst())
+  const userId = await requireUserId()
+  const ledger = await readLedger(db, userId, todayKst())
   if (!ledger) return null
   return {
     cycle: ledger.cycle,
@@ -130,12 +146,19 @@ const YM_RE = /^[0-9]{4}-(0[1-9]|1[0-2])$/
  * 합계는 목록에서 계산해 "합계 = 목록 합" 이 항상 성립하게 한다.
  */
 export async function getHistory(ym: string | undefined): Promise<History> {
-  await requireSession()
-  const target = ym && YM_RE.test(ym) ? ym : cycleFor(todayKst(), (await loadSettings()).payDay).ym
+  const userId = await requireUserId()
+  const target = ym && YM_RE.test(ym) ? ym : cycleFor(todayKst(), (await loadSettings(userId)).payDay).ym
 
-  const [month] = await db.select({ id: months.id }).from(months).where(eq(months.ym, target))
+  const [month] = await db
+    .select({ id: months.id })
+    .from(months)
+    .where(and(eq(months.userId, userId), eq(months.ym, target)))
   const items = month
-    ? await db.select().from(decisions).where(eq(decisions.monthId, month.id)).orderBy(desc(decisions.decidedAt))
+    ? await db
+        .select()
+        .from(decisions)
+        .where(and(eq(decisions.userId, userId), eq(decisions.monthId, month.id)))
+        .orderBy(desc(decisions.decidedAt))
     : []
 
   let heldTotal = 0
@@ -149,7 +172,34 @@ export async function getHistory(ym: string | undefined): Promise<History> {
 
 /** 설정이 저장된 주기 목록 (ym 내림차순) */
 export async function listMonths(): Promise<string[]> {
-  await requireSession()
-  const rows = await db.select({ ym: months.ym }).from(months).orderBy(desc(months.ym))
+  const userId = await requireUserId()
+  return listYms(userId)
+}
+
+async function listYms(userId: number): Promise<string[]> {
+  const rows = await db.select({ ym: months.ym }).from(months).where(eq(months.userId, userId)).orderBy(desc(months.ym))
   return rows.map((r) => r.ym)
+}
+
+export type PastCycle = Ledger & {
+  /** 이번 주기(오늘이 속한 주기) ym. 이동 줄에서 "이번 달"로 보낼지 정한다 */
+  currentYm: string
+  /** 저장한 주기 중 바로 앞·뒤 (없으면 null) */
+  prevYm: string | null
+  nextYm: string | null
+}
+
+/**
+ * 지난 주기 화면 (/cycle/[ym]). 그 주기를 저장할 때의 기간으로 지금 DB 를 다시 계산한다
+ * (그 당시 화면의 사진이 아니다: 나중에 고친 카드값·환불이 반영된다). 없는 주기면 null.
+ */
+export async function getPastCycle(ym: string): Promise<PastCycle | null> {
+  const userId = await requireUserId()
+  if (!YM_RE.test(ym)) return null
+  const ledger = await readLedgerByYm(db, userId, ym)
+  if (!ledger) return null
+  const [{ cycle: current }, yms] = await Promise.all([currentCycle(userId), listYms(userId)])
+  // yms 는 내림차순
+  const i = yms.indexOf(ym)
+  return { ...ledger, currentYm: current.ym, prevYm: yms[i + 1] ?? null, nextYm: i > 0 ? yms[i - 1] : null }
 }

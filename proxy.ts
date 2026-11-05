@@ -2,11 +2,15 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { SESSION_COOKIE, getSessionSecret, verifySessionToken } from '@/lib/session-token'
 
 // 낙관적 검사: 쿠키 서명만 보고 리다이렉트한다. DB 는 조회하지 않는다.
-// 실제 보안 검증은 lib/queries.ts 의 requireSession() 과 서버 액션의 withSession() 이 한다.
+// 실제 보안 검증은 lib/queries.ts 의 requireUserId() 와 서버 액션의 withUser() 가 한다.
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  // 구글 로그인 시작·콜백은 로그인 전에 지나가야 한다
+  if (pathname.startsWith('/auth/')) return NextResponse.next()
+
   const token = request.cookies.get(SESSION_COOKIE)?.value
-  const loggedIn = token ? await verifySessionToken(token, getSessionSecret()) : false
-  const onLogin = request.nextUrl.pathname === '/login'
+  const loggedIn = token ? (await verifySessionToken(token, getSessionSecret())) !== null : false
+  const onLogin = pathname === '/login'
 
   if (!loggedIn && !onLogin) return NextResponse.redirect(new URL('/login', request.url))
   if (loggedIn && onLogin) return NextResponse.redirect(new URL('/', request.url))
