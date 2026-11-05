@@ -9,6 +9,9 @@ import { formatWon } from '@/lib/format'
 /** 다음 카드값을 이만큼 안 옮겨 적으면 확인하라고 알린다 */
 const STALE_DAYS = 3
 
+/** 가린 금액 자리. 자릿수가 드러나지 않게 길이를 고정한다 */
+const MASK = '••••••'
+
 export type HomeViewProps = {
   ym: string
   cycleStart: string
@@ -37,12 +40,17 @@ export type HomeViewProps = {
   livingPerDay: number
   emergencyAmount: number
   heldTotal: number
+  /** 월급·고정지출·카드값을 가린다 (설정의 스위치) */
+  hideAmounts: boolean
 }
 
 const range = (a: string, b: string) => `${shortDate(a)}~${shortDate(b)}`
 
 export function HomeView(p: HomeViewProps) {
   const stale = p.nextBillStaleDays === null || p.nextBillStaleDays >= STALE_DAYS
+  const hide = p.hideAmounts
+  // 월급·고정지출·카드값만 가린다. 쓸 수 있는 돈·예산·판정 금액은 그대로 보인다
+  const priv = (n: number) => (hide ? MASK : formatWon(n))
   // 이번 주기 처음 정한 쇼핑 예산 중 얼마나 남았는지
   const barPct = p.shoppingBudgetStart > 0 ? (p.shopping / p.shoppingBudgetStart) * 100 : 0
 
@@ -82,16 +90,21 @@ export function HomeView(p: HomeViewProps) {
           <span className="ml-0.5 text-base">원</span>
         </p>
         <dl className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-tint p-3 text-center">
-          <Term label="월급" value={formatWon(p.salary)} />
-          <Term label="계좌 고정지출" value={`−${formatWon(p.fixedCashOut)}`} />
-          <Term label={p.thisBill.dueDate ? `카드값 ${shortDate(p.thisBill.dueDate)}` : '이번 카드값'} value={`−${formatWon(p.thisBill.fromCash)}`} />
+          <Term label="월급" value={priv(p.salary)} />
+          <Term label="계좌 고정지출" value={hide ? MASK : `−${formatWon(p.fixedCashOut)}`} />
+          <Term
+            label={p.thisBill.dueDate ? `카드값 ${shortDate(p.thisBill.dueDate)}` : '이번 카드값'}
+            value={hide ? MASK : `−${formatWon(p.thisBill.fromCash)}`}
+          />
         </dl>
         <div className="mt-3 flex flex-col gap-1 text-xs text-muted">
           {p.thisBill.dueDate === null ? (
             <p className="text-red">이번 카드값을 아직 입력하지 않았어요.</p>
           ) : p.thisBill.remaining > 0 ? (
             <p>
-              {shortDate(p.thisBill.dueDate)} 카드값 중 {formatWon(p.thisBill.remaining)}원이 아직 안 빠졌어요.
+              {hide
+                ? `${shortDate(p.thisBill.dueDate)} 카드값이 아직 다 빠지지 않았어요.`
+                : `${shortDate(p.thisBill.dueDate)} 카드값 중 ${formatWon(p.thisBill.remaining)}원이 아직 안 빠졌어요.`}
             </p>
           ) : (
             <p>{shortDate(p.thisBill.dueDate)} 카드값은 이미 빠졌어요.</p>
@@ -100,10 +113,16 @@ export function HomeView(p: HomeViewProps) {
             <p>
               확인하고 산 {formatWon(p.thisBill.reserved)}원은 살 때 쇼핑 예산에서 뺐어요.
               <br />
-              그래서 이번 월급에서는 {formatWon(p.thisBill.fromCash)}원만 빼요.
+              {hide ? '그래서 이번 월급에서는 그만큼 덜 빼요.' : `그래서 이번 월급에서는 ${formatWon(p.thisBill.fromCash)}원만 빼요.`}
             </p>
           )}
-          {p.fixedCard > 0 && <p>카드 고정지출 {formatWon(p.fixedCard)}원은 카드값에 들어 있어 따로 빼지 않아요.</p>}
+          {p.fixedCard > 0 && (
+            <p>
+              {hide
+                ? '카드 고정지출은 카드값에 들어 있어 따로 빼지 않아요.'
+                : `카드 고정지출 ${formatWon(p.fixedCard)}원은 카드값에 들어 있어 따로 빼지 않아요.`}
+            </p>
+          )}
         </div>
       </Card>
 
@@ -112,12 +131,12 @@ export function HomeView(p: HomeViewProps) {
           <p className="text-sm text-muted">
             다음 카드값{p.nextBill.dueDate ? ` · ${shortDate(p.nextBill.dueDate)} 출금 예정` : ''}
           </p>
-          <p className="text-lg font-bold">{formatWon(p.nextBill.amount)}원</p>
+          <p className="text-lg font-bold">{hide ? MASK : `${formatWon(p.nextBill.amount)}원`}</p>
         </div>
         {p.nextBill.reserved > 0 && (
           <dl className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-tint p-3 text-center">
             <Term label="확인하고 산 물건" value={formatWon(p.nextBill.reserved)} />
-            <Term label="월급에서 낼 돈" value={formatWon(p.nextBill.fromCash)} />
+            <Term label="월급에서 낼 돈" value={priv(p.nextBill.fromCash)} />
           </dl>
         )}
         <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
@@ -125,7 +144,7 @@ export function HomeView(p: HomeViewProps) {
             <p>
               확인하고 산 {formatWon(p.nextBill.reserved)}원은 살 때 쇼핑 예산에서 뺐어요.
               <br />
-              그래서 월급에서는 {formatWon(p.nextBill.fromCash)}원만 빼요.
+              {hide ? '그래서 월급에서는 그만큼 덜 빼요.' : `그래서 월급에서는 ${formatWon(p.nextBill.fromCash)}원만 빼요.`}
             </p>
           )}
           <p>

@@ -43,6 +43,7 @@ async function HomeLoader() {
       livingPerDay={budget.livingPerDay}
       emergencyAmount={month.emergencyAmount}
       heldTotal={home.heldTotal}
+      hideAmounts={home.settings.hideAmounts}
     />
   )
 }

@@ -13,7 +13,7 @@ import { computeCashflow, type PaymentMethod, type Reserve } from '@/lib/cashflo
 import { cardDueDate, cycleFor, nextCycle, shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { FIXED_MAX_COUNT, FIXED_NAME_MAX, type SaveMonthInput } from '@/lib/validation'
-import { saveMonth } from './actions'
+import { saveMonth, setHideAmounts } from './actions'
 
 type Props = {
   defaults: SaveMonthInput
@@ -23,6 +23,8 @@ type Props = {
   nextBillDue: string | null
   /** 카드 결제 준비금 (이미 예산에서 뺀 카드 구매) */
   reserves: Reserve[]
+  /** 홈에서 월급·고정지출·카드값을 가리는지 */
+  hideAmounts: boolean
   /** 처음 쓰는 경우에만 날짜 단계부터 시작한다 */
   isFirst: boolean
 }
@@ -32,14 +34,14 @@ type Step = 1 | 2 | 3
 
 const TOTAL_STEPS = 3
 const LIVING_STEP = 10_000
-const STEP_TITLES: Record<Step, string> = { 1: '날짜 설정', 2: '수입과 지출', 3: '예산 나누기' }
+const STEP_TITLES: Record<Step, string> = { 1: '기본 설정', 2: '수입과 지출', 3: '예산 나누기' }
 
 const ERRORS: Record<string, string> = {
   INVALID: '입력한 값을 다시 확인해 주세요.',
   DB: '저장하지 못했어요.\n잠시 후 다시 시도해 주세요.',
 }
 
-export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserves, isFirst }: Props) {
+export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserves, hideAmounts, isFirst }: Props) {
   const router = useRouter()
   const firstStep: Step = isFirst ? 1 : 2
   const [step, setStep] = useState<Step>(firstStep)
@@ -54,6 +56,23 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
   const [fixed, setFixed] = useState<FixedRow[]>(() => defaults.fixed.map((f, i) => ({ key: i, ...f })))
   const [nextKey, setNextKey] = useState(defaults.fixed.length)
   const [error, setError] = useState<string | null>(null)
+  const [hide, setHide] = useState(hideAmounts)
+  const [hidePending, startHide] = useTransition()
+
+  // 누르는 즉시 저장한다. 실패하면 되돌린다
+  const toggleHide = () => {
+    const nextValue = !hide
+    setHide(nextValue)
+    setError(null)
+    startHide(async () => {
+      const result = await setHideAmounts(nextValue)
+      if (!result.ok) {
+        if (result.error === 'UNAUTHORIZED') return router.replace('/login')
+        setHide(!nextValue)
+        setError(ERRORS[result.error] ?? ERRORS.DB)
+      }
+    })
+  }
   const [pending, startTransition] = useTransition()
 
   // 월급일을 바꾸면 주기도 바뀐다. 날짜 계산은 lib/cycle 에만 둔다.
@@ -134,6 +153,33 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           <DayField label="월급일" value={payDay} onChange={setPayDay} />
           <DayField label="카드값 확정일" value={cardCutoffDay} onChange={setCardCutoffDay} />
           <DayField label="카드값 출금일" value={cardPayDay} onChange={setCardPayDay} />
+          <Card>
+            <div className="flex items-center justify-between gap-3">
+              <span id="hide-amounts-label" className="font-bold">
+                홈에서 월급·고정지출·카드값 가리기
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hide}
+                aria-labelledby="hide-amounts-label"
+                onClick={toggleHide}
+                disabled={hidePending}
+                className={clsx(
+                  'relative h-8 w-14 shrink-0 rounded-full transition-colors motion-reduce:transition-none disabled:opacity-60',
+                  hide ? 'bg-pink' : 'bg-line',
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={clsx(
+                    'absolute top-1 left-1 size-6 rounded-full bg-white shadow transition-transform motion-reduce:transition-none',
+                    hide && 'translate-x-6',
+                  )}
+                />
+              </button>
+            </div>
+          </Card>
         </>
       )}
 

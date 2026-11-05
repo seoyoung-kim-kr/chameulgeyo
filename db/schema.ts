@@ -12,6 +12,8 @@ export const settings = pgTable(
     cardCutoffDay: integer('card_cutoff_day').notNull().default(24),
     /** 카드 대금 출금일. 새 대금의 기본 출금일 제안에만 쓴다 (실제 출금일은 card_bills.due_date) */
     cardPayDay: integer('card_pay_day').notNull().default(5),
+    /** 월급·고정지출·카드값을 화면에서 ●●●●●● 로 가린다 (모든 기기 공통) */
+    hideAmounts: boolean('hide_amounts').notNull().default(false),
   },
   (t) => [
     check('settings_single_row', sql`${t.id} = 1`),

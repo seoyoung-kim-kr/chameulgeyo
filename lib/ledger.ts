@@ -12,15 +12,15 @@ import { cycleFor, inCycle, nextCycle, statementDueDate, todayKst, type Cycle } 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 export type Executor = typeof db | Tx
 
-export type Settings = { payDay: number; cardCutoffDay: number; cardPayDay: number }
-export const DEFAULT_SETTINGS: Settings = { payDay: 5, cardCutoffDay: 24, cardPayDay: 5 }
+export type Settings = { payDay: number; cardCutoffDay: number; cardPayDay: number; hideAmounts: boolean }
+export const DEFAULT_SETTINGS: Settings = { payDay: 5, cardCutoffDay: 24, cardPayDay: 5, hideAmounts: false }
 
 export type MonthRow = typeof months.$inferSelect & { fixed: (typeof fixedExpenses.$inferSelect)[] }
 export type CardBillRow = typeof cardBills.$inferSelect
 
 export async function readSettings(q: Executor): Promise<Settings | null> {
   const [row] = await q.select().from(settings).where(eq(settings.id, 1))
-  return row ? { payDay: row.payDay, cardCutoffDay: row.cardCutoffDay, cardPayDay: row.cardPayDay } : null
+  return row ? { payDay: row.payDay, cardCutoffDay: row.cardCutoffDay, cardPayDay: row.cardPayDay, hideAmounts: row.hideAmounts } : null
 }
 
 export async function readMonth(q: Executor, ym: string, lock = false): Promise<MonthRow | null> {
@@ -117,7 +117,12 @@ export async function readLedger(q: Executor, today: string, lock = false): Prom
 }
 
 /** 카드 결제 준비금: 지난 주기에 산 것까지 포함해, 이번·다음 주기에 출금될 "산다" 구매만 고른다 */
-export async function readReserves(q: Executor, s: Settings, cycle: Cycle, next: Cycle): Promise<Reserve[]> {
+export async function readReserves(
+  q: Executor,
+  s: Pick<Settings, 'cardCutoffDay' | 'cardPayDay'>,
+  cycle: Cycle,
+  next: Cycle,
+): Promise<Reserve[]> {
   const since = new Date(Date.now() - RESERVE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
   const bought = await q
     .select({ price: decisions.price, decidedAt: decisions.decidedAt })
