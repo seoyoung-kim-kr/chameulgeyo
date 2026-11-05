@@ -1,7 +1,7 @@
 // 판정 저장 로직. 세션 검사가 없으므로 'use server' 파일에 두면 안 된다
 // ('use server' 파일의 export 는 전부 공개 서버 액션이 된다). 액션(app/(app)/check/actions.ts)과
 // 멱등성 검증 스크립트(scripts/choose-idempotency.ts)만 import 한다.
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { cardBills, decisions } from '@/db/schema'
 import type { ActionResult } from './action'
@@ -10,16 +10,18 @@ import { cycleFor, refundPlan, statementDueDate, todayKst } from './cycle'
 import { DEFAULT_SETTINGS, readBills, readLedger, readSettings, type Executor, type Ledger } from './ledger'
 import { chooseSchema, decisionIdSchema, type ChooseInput } from './validation'
 
-async function loadJudgeContext(q: Executor, lock: boolean): Promise<{ ledger: Ledger; ctx: JudgeContext } | null> {
-  const ledger = await readLedger(q, todayKst(), lock)
+// 모든 함수는 서버 액션이 확인한 userId 를 받아 그 사용자 행만 읽고 쓴다.
+
+async function loadJudgeContext(q: Executor, userId: number, lock: boolean): Promise<{ ledger: Ledger; ctx: JudgeContext } | null> {
+  const ledger = await readLedger(q, userId, todayKst(), lock)
   if (!ledger) return null
   const { budget, month, cycle } = ledger
   return { ledger, ctx: { shoppingRaw: budget.shoppingRaw, livingTarget: month.livingTarget, cycleDays: cycle.days } }
 }
 
 /** 서버 기준 판정. DB 에 쓰지 않는다. price 검증은 호출하는 쪽에서 한다. */
-export async function decideInternal(price: number): Promise<ActionResult<DecideResult>> {
-  const loaded = await loadJudgeContext(db, false)
+export async function decideInternal(userId: number, price: number): Promise<ActionResult<DecideResult>> {
+  const loaded = await loadJudgeContext(db, userId, false)
   if (!loaded) return { ok: false, error: 'NO_MONTH' }
   return { ok: true, data: decisionFor(price, loaded.ctx) }
 }
@@ -34,13 +36,13 @@ export async function decideInternal(price: number): Promise<ActionResult<Decide
  *   updated_at 은 건드리지 않는다
  *   (카드사 숫자를 옮겨 적은 시각만 뜻한다. 다음에 카드 앱 숫자로 덮어쓰면 중복이 풀린다)
  */
-export async function chooseInternal(input: ChooseInput): Promise<ActionResult<{ duplicated: boolean }>> {
+export async function chooseInternal(userId: number, input: ChooseInput): Promise<ActionResult<{ duplicated: boolean }>> {
   const parsed = chooseSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: 'INVALID' }
   const v = parsed.data
 
   return db.transaction(async (tx) => {
-    const loaded = await loadJudgeContext(tx, true)
+    const loaded = await loadJudgeContext(tx, userId, true)
     if (!loaded) return { ok: false, error: 'NO_MONTH' } as const
     const { ledger } = loaded
 
@@ -49,6 +51,7 @@ export async function chooseInternal(input: ChooseInput): Promise<ActionResult<{
       .insert(decisions)
       .values({
         id: v.id,
+        userId,
         monthId: ledger.month.id,
         name: v.name,
         price: v.price,
@@ -62,7 +65,7 @@ export async function chooseInternal(input: ChooseInput): Promise<ActionResult<{
 
     if (inserted.length === 0) return { ok: true, data: { duplicated: true } } as const
 
-    if (v.choice === 'bought') await addToBill(tx, ledger, v.price)
+    if (v.choice === 'bought') await addToBill(tx, userId, ledger, v.price)
     return { ok: true, data: { duplicated: false } } as const
   })
 }
@@ -72,22 +75,22 @@ export async function chooseInternal(input: ChooseInput): Promise<ActionResult<{
  * 그 출금일이 속한 급여 주기에 대금이 이미 있으면 거기에 더하고, 없으면 그 날짜로 만든다
  * (카드 고정지출은 아직 안 들어 있다고 본다).
  */
-async function addToBill(q: Executor, ledger: Ledger, price: number): Promise<void> {
+async function addToBill(q: Executor, userId: number, ledger: Ledger, price: number): Promise<void> {
   const { payDay, cardCutoffDay, cardPayDay } = ledger.settings
   const due = statementDueDate(todayKst(), cardCutoffDay, cardPayDay)
   const target = cycleFor(due, payDay)
-  const [bill] = await readBills(q, target.start, target.end)
+  const [bill] = await readBills(q, userId, target.start, target.end)
   if (bill) {
     await q
       .update(cardBills)
       .set({ amount: sql`${cardBills.amount} + ${price}` })
-      .where(eq(cardBills.id, bill.id))
+      .where(and(eq(cardBills.id, bill.id), eq(cardBills.userId, userId)))
     return
   }
   await q
     .insert(cardBills)
-    .values({ dueDate: due, amount: price, includesCardFixed: false })
-    .onConflictDoUpdate({ target: cardBills.dueDate, set: { amount: sql`${cardBills.amount} + ${price}` } })
+    .values({ userId, dueDate: due, amount: price, includesCardFixed: false })
+    .onConflictDoUpdate({ target: [cardBills.userId, cardBills.dueDate], set: { amount: sql`${cardBills.amount} + ${price}` } })
 }
 
 export type CancelResult = {
@@ -105,12 +108,17 @@ export type CancelResult = {
  * - 원래 대금 출금 후: 원래 대금은 준비금으로 냈으므로 그대로 두고, 오늘 기준 다음 청구 대금에서 가격을 뺀다
  *   (카드사 환불이 다음 청구에서 차감되는 것과 같다)
  * 대금이 아직 없으면(카드 앱 숫자를 지운 경우 등) 대금은 건드리지 않는다.
+ * 다른 사용자의 기록이면 NOT_FOUND (있다는 사실도 알리지 않는다).
  */
-export async function cancelInternal(id: string): Promise<ActionResult<CancelResult>> {
+export async function cancelInternal(userId: number, id: string): Promise<ActionResult<CancelResult>> {
   if (!decisionIdSchema.safeParse(id).success) return { ok: false, error: 'INVALID' }
 
   return db.transaction(async (tx) => {
-    const [d] = await tx.select().from(decisions).where(eq(decisions.id, id)).for('update')
+    const [d] = await tx
+      .select()
+      .from(decisions)
+      .where(and(eq(decisions.id, id), eq(decisions.userId, userId)))
+      .for('update')
     if (!d) return { ok: false, error: 'NOT_FOUND' } as const
     if (d.choice !== 'bought') return { ok: false, error: 'NOT_BOUGHT' } as const
     if (d.canceledAt) {
@@ -120,20 +128,20 @@ export async function cancelInternal(id: string): Promise<ActionResult<CancelRes
       } as const
     }
 
-    const s = (await readSettings(tx)) ?? DEFAULT_SETTINGS
+    const s = (await readSettings(tx, userId)) ?? DEFAULT_SETTINGS
     const plan = refundPlan(todayKst(d.decidedAt), todayKst(), s.cardCutoffDay, s.cardPayDay)
     const target = cycleFor(plan.refundDue, s.payDay)
-    const [bill] = await readBills(tx, target.start, target.end)
+    const [bill] = await readBills(tx, userId, target.start, target.end)
     if (bill) {
       await tx
         .update(cardBills)
         .set({ amount: sql`greatest(${cardBills.amount} - ${d.price}, 0)` })
-        .where(eq(cardBills.id, bill.id))
+        .where(and(eq(cardBills.id, bill.id), eq(cardBills.userId, userId)))
     }
     await tx
       .update(decisions)
       .set({ canceledAt: new Date(), refundDueDate: plan.refundDue, refundBeforeBilling: plan.beforeBilling })
-      .where(eq(decisions.id, id))
+      .where(and(eq(decisions.id, id), eq(decisions.userId, userId)))
 
     return { ok: true, data: { already: false, price: d.price, refundDue: plan.refundDue, beforeBilling: plan.beforeBilling } } as const
   })

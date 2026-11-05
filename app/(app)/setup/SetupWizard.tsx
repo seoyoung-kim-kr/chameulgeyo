@@ -13,7 +13,7 @@ import { computeCashflow, type PaymentMethod, type Reserve } from '@/lib/cashflo
 import { cardDueDate, cycleFor, nextCycle, shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { FIXED_MAX_COUNT, FIXED_NAME_MAX, type SaveMonthInput } from '@/lib/validation'
-import { saveMonth, setHideAmounts } from './actions'
+import { logout, saveMonth, setHideAmounts } from './actions'
 
 type Props = {
   defaults: SaveMonthInput
@@ -341,6 +341,13 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           <Button variant="text" onClick={() => setStep((s) => (s - 1) as Step)} disabled={pending}>
             이전
           </Button>
+        )}
+        {step === 1 && (
+          <form action={logout} className="flex justify-center">
+            <Button type="submit" variant="text" disabled={pending}>
+              로그아웃
+            </Button>
+          </form>
         )}
       </BottomActions>
     </Screen>

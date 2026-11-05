@@ -1,13 +1,11 @@
-// DB 연결 확인: settings 기본 행을 만들고 읽어 온다.
+// DB 연결 확인: 읽기와 트랜잭션이 되는지 본다 (쓰지 않는다).
 // 실행: npm run db:smoke
-import { eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { db } from '../db'
-import { settings } from '../db/schema'
 
 async function main() {
-  await db.insert(settings).values({ id: 1 }).onConflictDoNothing()
-  const [row] = await db.select().from(settings).where(eq(settings.id, 1))
-  console.log(row)
+  const where = await db.execute(sql`select current_setting('neon.branch_id', true) as branch, (select count(*) from users) as users`)
+  console.log(where.rows[0])
   // 트랜잭션이 되는지도 확인 (neon-http 였다면 여기서 에러)
   const n = await db.transaction(async (tx) => (await tx.execute(sql`select 1 as one`)).rows.length)
   console.log('transaction ok:', n === 1)
