@@ -83,8 +83,9 @@ export function isOwner(profile: GoogleProfile, ownerEmail: string | undefined):
 }
 
 export function googleEnv(): { clientId: string; clientSecret: string } {
-  const clientId = process.env.GOOGLE_CLIENT_ID
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  // 콘솔에서 붙여넣을 때 섞이는 앞뒤 공백·줄바꿈은 잘라 낸다 (섞이면 구글이 invalid_client 를 낸다)
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim()
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
   if (!clientId || !clientSecret) throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set')
   return { clientId, clientSecret }
 }
