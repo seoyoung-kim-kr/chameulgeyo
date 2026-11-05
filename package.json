@@ -21,7 +21,6 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
     "@vercel/functions": "^3.10.6",
-    "arctic": "^3.7.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",
     "jose": "^6.2.15",

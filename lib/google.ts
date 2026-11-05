@@ -50,7 +50,7 @@ export type CallbackInput = {
 }
 
 export type CallbackDeps = {
-  /** code → ID 토큰 클레임 (arctic validateAuthorizationCode + decodeIdToken) */
+  /** code → ID 토큰 클레임 (lib/google-oauth.ts exchangeCode) */
   exchange: (code: string, verifier: string) => Promise<unknown>
   clientId: string
   now: () => number

@@ -40,7 +40,7 @@ Next.js 16 Cache Components 위에서 만든다. 화면 뼈대(프레임·제목
 
 **Activity와 최신성.** Cache Components는 떠난 화면을 언마운트하지 않고 숨긴다. `<Link>`로 돌아오면 Next가 데이터를 다시 받지만, 브라우저 뒤로 가기와 백그라운드 복귀는 숨겨 둔 화면을 그대로 보여준다. `RefreshOnVisible`이 이 두 경우에 `router.refresh()`를 부른다. 판정 화면과 카드값 시트처럼 한 번 쓰고 끝나는 상태는 화면이 숨겨질 때 직접 초기화한다.
 
-**인증.** 구글 OAuth(PKCE, scope `openid email profile`, `arctic`)로 계정을 확인하고, 세션은 jose로 서명한 httpOnly 쿠키(`cg_session`, 30일, `sub` = users.id)다. `/auth/google`이 state·code_verifier를 10분짜리 쿠키에 두고 구글로 보내고, `/auth/google/callback`이 state를 비교한 뒤 code를 교환해 ID 토큰(발급자·대상·만료 확인)으로 사용자를 찾거나 만든다(`lib/google.ts`, `lib/users.ts`). `proxy.ts`는 쿠키 서명만 보고 미로그인을 `/login`으로 보낸다(DB 조회 없음, `/auth/*`는 통과). 실제 검증은 조회 함수(`lib/queries.ts`의 `requireUserId`)와 모든 서버 액션(`withUser`)이 따로 한다. 서버 액션 요청은 proxy를 건너뛰어, 세션이 만료되면 리다이렉트 대신 `UNAUTHORIZED`를 돌려준다. 로그아웃은 설정 첫 단계(기본 설정) 맨 아래.
+**인증.** 구글 OAuth(PKCE, scope `openid email profile`, `lib/google-oauth.ts`에 직접 구현)로 계정을 확인하고, 세션은 jose로 서명한 httpOnly 쿠키(`cg_session`, 30일, `sub` = users.id)다. `/auth/google`이 state·code_verifier를 10분짜리 쿠키에 두고 구글로 보내고, `/auth/google/callback`이 state를 비교한 뒤 code를 교환해 ID 토큰(발급자·대상·만료 확인)으로 사용자를 찾거나 만든다(`lib/google.ts`, `lib/users.ts`). `proxy.ts`는 쿠키 서명만 보고 미로그인을 `/login`으로 보낸다(DB 조회 없음, `/auth/*`는 통과). 실제 검증은 조회 함수(`lib/queries.ts`의 `requireUserId`)와 모든 서버 액션(`withUser`)이 따로 한다. 서버 액션 요청은 proxy를 건너뛰어, 세션이 만료되면 리다이렉트 대신 `UNAUTHORIZED`를 돌려준다. 로그아웃은 설정 첫 단계(기본 설정) 맨 아래.
 
 **사용자 분리.** settings·months·card_bills·decisions에 `user_id`가 있고(fixed_expenses는 months를 통해 소속), `lib/ledger.ts`·`lib/decisions.ts`·`lib/bills.ts`의 모든 함수가 userId를 필수 인자로 받아 그 사용자 행만 읽고 쓴다. 남의 판정 기록 id로 취소하면 `NOT_FOUND`. `npm run db:check-isolation`이 확인한다.
 
