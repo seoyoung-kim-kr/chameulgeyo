@@ -98,9 +98,9 @@ export function HomeView(p: HomeViewProps) {
           )}
           {p.thisBill.reserved > 0 && (
             <p>
-              앱에서 산 {formatWon(p.thisBill.reserved)}원은 산 달 쇼핑 예산에서 이미 뺐어요.
+              확인하고 산 {formatWon(p.thisBill.reserved)}원은 살 때 쇼핑 예산에서 뺐어요.
               <br />
-              그래서 이번 월급에서는 다시 빼지 않아요.
+              그래서 이번 월급에서는 {formatWon(p.thisBill.fromCash)}원만 빼요.
             </p>
           )}
           {p.fixedCard > 0 && <p>카드 고정지출 {formatWon(p.fixedCard)}원은 카드값에 들어 있어 따로 빼지 않아요.</p>}
@@ -116,16 +116,16 @@ export function HomeView(p: HomeViewProps) {
         </div>
         {p.nextBill.reserved > 0 && (
           <dl className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-tint p-3 text-center">
-            <Term label="이미 떼어 둔 돈" value={formatWon(p.nextBill.reserved)} />
-            <Term label="다음 월급에서 낼 돈" value={formatWon(p.nextBill.fromCash)} />
+            <Term label="확인하고 산 물건" value={formatWon(p.nextBill.reserved)} />
+            <Term label="월급에서 낼 돈" value={formatWon(p.nextBill.fromCash)} />
           </dl>
         )}
         <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
           {p.nextBill.reserved > 0 && (
             <p>
-              앱에서 산 {formatWon(p.nextBill.reserved)}원은 산 달 쇼핑 예산에서 이미 뺐어요.
+              확인하고 산 {formatWon(p.nextBill.reserved)}원은 살 때 쇼핑 예산에서 뺐어요.
               <br />
-              그래서 다음 월급에서는 다시 빼지 않아요.
+              그래서 월급에서는 {formatWon(p.nextBill.fromCash)}원만 빼요.
             </p>
           )}
           <p>
