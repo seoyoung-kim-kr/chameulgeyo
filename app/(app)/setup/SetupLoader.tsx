@@ -15,6 +15,7 @@ export async function SetupLoader() {
       thisBillDue={thisBill?.dueDate ?? null}
       nextBillDue={nextBill?.dueDate ?? null}
       reserves={reserves}
+      hideAmounts={settings.hideAmounts}
       isFirst={!current && !previous}
     />
   )

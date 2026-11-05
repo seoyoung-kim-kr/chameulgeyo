@@ -1,7 +1,9 @@
 'use server'
 
 import { eq } from 'drizzle-orm'
+import { refresh } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { z } from 'zod'
 import { db } from '@/db'
 import { fixedExpenses, months, settings } from '@/db/schema'
 import { withSession, type ActionResult } from '@/lib/action'
@@ -45,7 +47,7 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
         await upsertCycleBill(tx, next, cardDueDate(next, v.cardPayDay), { amount: v.nextBill })
 
         // 쇼핑 예산 스냅샷: 이번 주기 현금에서 생활비·비상금을 뺀 값 (산 것은 아직 없다고 본다)
-        const reserves = await readReserves(tx, { payDay: v.payDay, cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay }, cycle, next)
+        const reserves = await readReserves(tx, { cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay }, cycle, next)
         const { cash } = computeCashflow({
           salary: v.salary,
           fixed: v.fixed.map((f) => ({ amount: f.amount, method: f.method })),
@@ -92,5 +94,24 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
     }
 
     redirect('/')
+  })
+}
+
+/** 홈에서 월급·고정지출·카드값을 가릴지. 누르는 즉시 저장한다 (월 설정 저장과 별개) */
+export async function setHideAmounts(hide: boolean): Promise<ActionResult> {
+  return withSession(async () => {
+    const parsed = z.boolean().safeParse(hide)
+    if (!parsed.success) return { ok: false, error: 'INVALID' }
+    try {
+      await db
+        .insert(settings)
+        .values({ id: 1, hideAmounts: parsed.data })
+        .onConflictDoUpdate({ target: settings.id, set: { hideAmounts: parsed.data } })
+    } catch (e) {
+      console.error('[setHideAmounts]', e)
+      return { ok: false, error: 'DB' }
+    }
+    refresh()
+    return { ok: true, data: undefined }
   })
 }

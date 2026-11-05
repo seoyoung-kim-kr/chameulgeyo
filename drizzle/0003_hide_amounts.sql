@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "hide_amounts" boolean DEFAULT false NOT NULL;
