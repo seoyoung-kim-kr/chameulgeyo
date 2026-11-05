@@ -12,7 +12,7 @@ const BOX = 'flex h-12 items-center gap-1 rounded-xl border border-line bg-white
 export function Field({ label, aside, children }: { label: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between text-sm text-muted">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-sm text-muted">
         <span>{label}</span>
         {aside}
       </div>
@@ -46,6 +46,24 @@ export function MoneyInput({ value, onChange, label, className }: MoneyInputProp
         }}
       />
       <span className="shrink-0 text-sm text-muted">원</span>
+    </span>
+  )
+}
+
+/**
+ * 날짜 입력 상자. 다른 입력과 같은 테두리 상자 안에 넣는다.
+ * iOS Safari 의 type="date" 는 고유 최소 너비로 상자 밖으로 삐져나오고, 값을 가운데 정렬하며,
+ * 높이를 무시하고, 값이 비면 높이가 줄어든다. appearance·min-w-0·전역 CSS(globals.css)로 맞춘다.
+ */
+export function DateInput({ className, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  return (
+    // overflow-hidden: iOS 버전에 따라 min-w-0 이 안 먹어도 상자 밖으로 그려지지 않게 자른다
+    <span className={clsx(BOX, 'min-w-0 overflow-hidden', className)}>
+      <input
+        type="date"
+        className="date-input block h-full w-full min-w-0 appearance-none bg-transparent text-left text-base outline-none"
+        {...rest}
+      />
     </span>
   )
 }

@@ -45,3 +45,23 @@
     to { transform: translateY(0); opacity: 1; }
   }
 }
+
+/* iOS Safari 날짜 입력: 가운데 정렬·고유 여백·빈 값일 때 높이 줄어듦을 없앤다 (components/Field.tsx DateInput) */
+.date-input {
+  -webkit-appearance: none;
+  line-height: normal;
+  min-width: 0;
+  max-width: 100%;
+}
+.date-input::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  min-height: 1.5em;
+}
+.date-input::-webkit-datetime-edit,
+.date-input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+.date-input::-webkit-calendar-picker-indicator {
+  margin: 0;
+}

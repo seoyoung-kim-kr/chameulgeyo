@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Button, buttonClass } from '@/components/Button'
-import { Field, MoneyInput } from '@/components/Field'
+import { DateInput, Field, MoneyInput } from '@/components/Field'
 import { BottomActions, Card, Message } from '@/components/Screen'
 import { shortDate, type Cycle } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
@@ -28,7 +28,6 @@ const ERRORS: Record<string, string> = {
 }
 
 const range = (c: Cycle) => `${shortDate(c.start)}~${shortDate(c.end)}`
-const DATE_BOX = 'h-12 w-full rounded-xl border border-line bg-white px-3 text-base outline-none focus:border-pink'
 
 /** 카드 대금 두 건(이번 주기 출금 / 다음 주기 출금 예정)을 카드 앱 숫자로 옮겨 적는다. */
 export function CardForm({ cycle, next, thisBill: t0, nextBill: n0, cardFixed }: Props) {
@@ -65,14 +64,12 @@ export function CardForm({ cycle, next, thisBill: t0, nextBill: n0, cardFixed }:
             <MoneyInput label="이번 카드값" value={thisAmount} onChange={setThisAmount} />
           </Field>
           <Field label="출금일">
-            <input
-              type="date"
+            <DateInput
               aria-label="이번 카드값 출금일"
               min={cycle.start}
               max={cycle.end}
               value={thisDue}
               onChange={(e) => setThisDue(e.target.value)}
-              className={DATE_BOX}
             />
           </Field>
           <label className="flex items-center gap-2 text-sm">
@@ -88,14 +85,12 @@ export function CardForm({ cycle, next, thisBill: t0, nextBill: n0, cardFixed }:
             <MoneyInput label="다음 카드값" value={nextAmount} onChange={setNextAmount} />
           </Field>
           <Field label="출금 예정일">
-            <input
-              type="date"
+            <DateInput
               aria-label="다음 카드값 출금 예정일"
               min={next.start}
               max={next.end}
               value={nextDue}
               onChange={(e) => setNextDue(e.target.value)}
-              className={DATE_BOX}
             />
           </Field>
           {cardFixed > 0 && (
