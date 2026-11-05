@@ -57,7 +57,8 @@ export function MoneyInput({ value, onChange, label, className }: MoneyInputProp
  */
 export function DateInput({ className, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   return (
-    <span className={clsx(BOX, className)}>
+    // overflow-hidden: iOS 버전에 따라 min-w-0 이 안 먹어도 상자 밖으로 그려지지 않게 자른다
+    <span className={clsx(BOX, 'min-w-0 overflow-hidden', className)}>
       <input
         type="date"
         className="date-input block h-full w-full min-w-0 appearance-none bg-transparent text-left text-base outline-none"

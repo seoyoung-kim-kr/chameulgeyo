@@ -50,6 +50,8 @@
 .date-input {
   -webkit-appearance: none;
   line-height: normal;
+  min-width: 0;
+  max-width: 100%;
 }
 .date-input::-webkit-date-and-time-value {
   text-align: left;
