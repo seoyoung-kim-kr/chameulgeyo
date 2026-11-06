@@ -4,7 +4,7 @@ import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import clsx from 'clsx'
-import { IoClose, IoReorderThree } from 'react-icons/io5'
+import { IoReorderThree, IoTrashOutline } from 'react-icons/io5'
 import type { PaymentMethod } from '@/lib/cashflow'
 import { formatWon } from '@/lib/format'
 import { AMOUNT_MAX, FIXED_MAX_COUNT, FIXED_NAME_MAX } from '@/lib/validation'
@@ -58,8 +58,9 @@ export function FixedList({ rows, onChange }: Props) {
 
 /**
  * 한 항목 = 한 줄. 상자 테두리 없이 글자만 두고, 포커스한 칸에만 밑줄이 생긴다.
- *   [≡] 이름(굵게)                 30,000 원 [×]
- *       (계좌 | 카드)
+ *   [≡] 이름(굵게)                 30,000 원
+ *   [🗑] (계좌 | 카드)
+ * 왼쪽 줄: 손잡이는 이름 줄에, 휴지통은 결제수단 줄에 맞춘다.
  */
 function Row({ row: f, onUpdate, onRemove }: { row: FixedRow; onUpdate: (patch: Partial<FixedRow>) => void; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: f.key })
@@ -70,7 +71,7 @@ function Row({ row: f, onUpdate, onRemove }: { row: FixedRow; onUpdate: (patch: 
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={clsx(
-        'grid grid-cols-[1.5rem_minmax(0,1fr)_auto_1.5rem] items-center gap-x-2 py-3 first:pt-0',
+        'grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-2 py-3 first:pt-0',
         isDragging && 'relative z-10 rounded-xl bg-white px-2 shadow-[0_8px_24px_rgba(0,0,0,.12)]',
       )}
     >
@@ -80,7 +81,7 @@ function Row({ row: f, onUpdate, onRemove }: { row: FixedRow; onUpdate: (patch: 
         aria-label={`${label} 순서 바꾸기`}
         {...attributes}
         {...listeners}
-        className="row-span-2 flex h-10 w-6 cursor-grab touch-none items-center justify-center rounded-lg text-xl text-muted/50 active:cursor-grabbing active:text-muted"
+        className="flex h-8 w-6 cursor-grab touch-none items-center justify-center rounded-lg text-xl text-muted/50 active:cursor-grabbing active:text-muted"
       >
         <IoReorderThree aria-hidden />
       </button>
@@ -113,15 +114,15 @@ function Row({ row: f, onUpdate, onRemove }: { row: FixedRow; onUpdate: (patch: 
         <span className="text-sm text-muted">원</span>
       </span>
 
+
       <button
         type="button"
         aria-label={`${label} 삭제`}
         onClick={onRemove}
-        className="row-span-2 flex size-6 items-center justify-center rounded-full text-base text-muted active:bg-soft"
+        className="mt-1 flex h-7 w-6 items-center justify-center rounded-lg text-base text-muted/60 active:bg-soft active:text-red"
       >
-        <IoClose aria-hidden />
+        <IoTrashOutline aria-hidden />
       </button>
-
       <div role="radiogroup" aria-label={`${label} 결제 수단`} className={clsx('col-span-2 mt-1 flex w-fit gap-0.5 rounded-full p-0.5', f.method === null ? 'bg-soft ring-1 ring-red' : 'bg-soft')}>
         {METHODS.map((m) => (
           <button
