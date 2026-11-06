@@ -65,7 +65,7 @@ function PastView({ p }: { p: PastCycle }) {
       <Card aria-label="그 달 배분한 돈">
         <p className="text-sm text-muted">
           그 달 배분한 돈
-          <InfoTip label="그 달 배분한 돈 설명" lines={CASH_LINES} />
+          <InfoTip title="그 달 배분한 돈" lines={CASH_LINES} />
         </p>
         <p className={clsx('mt-2 text-3xl font-bold', cashflow.cash < 0 ? 'text-red' : 'text-deep')}>
           {formatWon(cashflow.cash)}
@@ -87,7 +87,7 @@ function PastView({ p }: { p: PastCycle }) {
         name={
           <>
             쇼핑 예산
-            <InfoTip label="쇼핑 예산 설명" lines={shoppingLines(budget.shoppingRaw, budget.deferred, p.boughtCard)} />
+            <InfoTip title="쇼핑 예산" lines={shoppingLines(budget.shoppingRaw, budget.deferred, p.boughtCard)} />
           </>
         }
         amount={formatWon(budget.shoppingRaw)}
@@ -101,7 +101,7 @@ function PastView({ p }: { p: PastCycle }) {
         name={
           <>
             생활비
-            <InfoTip label="생활비 설명" lines={LIVING_LINES} />
+            <InfoTip title="생활비" lines={LIVING_LINES} />
           </>
         }
         amount={formatWon(budget.livingNow)}
@@ -113,7 +113,7 @@ function PastView({ p }: { p: PastCycle }) {
         name={
           <>
             예비비
-            <InfoTip label="예비비 설명" lines={EMERGENCY_LINES} />
+            <InfoTip title="예비비" lines={EMERGENCY_LINES} />
           </>
         }
         amount={formatWon(month.emergencyAmount)}

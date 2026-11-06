@@ -44,6 +44,17 @@
     from { transform: translateY(-12px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
+
+  --animate-sheet: sheet 0.22s ease-out both;
+  @keyframes sheet {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+}
+
+/* ⓘ 설명 시트 (components/InfoTip.tsx). 배경은 반투명 잉크색 */
+dialog.info-sheet::backdrop {
+  background: rgba(45, 27, 36, 0.35);
 }
 
 /* iOS Safari 날짜 입력: 가운데 정렬·고유 여백·빈 값일 때 높이 줄어듦을 없앤다 (components/Field.tsx DateInput) */

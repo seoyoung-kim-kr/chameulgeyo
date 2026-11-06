@@ -296,7 +296,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           <Card tone="tint">
             <p className="text-sm text-muted">
               이번 달 배분할 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
-              <InfoTip label="이번 달 배분할 돈 설명" lines={CASH_LINES} />
+              <InfoTip title="이번 달 배분할 돈" lines={CASH_LINES} />
             </p>
             <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
               {formatWon(budget.available)}
@@ -311,7 +311,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           <Card tone="tint">
             <p className="text-sm text-muted">
               이번 달 배분할 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
-              <InfoTip label="이번 달 배분할 돈 설명" lines={CASH_LINES} />
+              <InfoTip title="이번 달 배분할 돈" lines={CASH_LINES} />
             </p>
             <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
               {formatWon(budget.available)}
@@ -345,7 +345,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
             name={
               <>
                 예비비
-                <InfoTip label="예비비 설명" lines={EMERGENCY_LINES} />
+                <InfoTip title="예비비" lines={EMERGENCY_LINES} />
               </>
             }
             amount={<MoneyInput label="예비비" value={emergencyAmount} onChange={setEmergencyAmount} className="w-36" />}

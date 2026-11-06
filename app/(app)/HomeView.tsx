@@ -99,7 +99,7 @@ export function HomeView(p: HomeViewProps) {
       <Card aria-label="이번 달 배분할 돈">
         <p className="text-sm text-muted">
           이번 달 배분할 돈
-          <InfoTip label="이번 달 배분할 돈 설명" lines={cashLines(p)} />
+          <InfoTip title="이번 달 배분할 돈" lines={cashLines(p)} />
         </p>
         <p className={clsx('mt-2 text-3xl font-bold', p.cash < 0 ? 'text-red' : 'text-deep')}>
           {formatWon(p.cash)}
@@ -132,7 +132,7 @@ export function HomeView(p: HomeViewProps) {
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm text-muted">
             다음 카드값{p.nextBill.dueDate ? ` · ${shortDate(p.nextBill.dueDate)} 출금 예정` : ''}
-            <InfoTip label="다음 카드값 설명" lines={nextBillLines(p)} />
+            <InfoTip title="다음 카드값" lines={nextBillLines(p)} />
           </p>
           <p className="text-lg font-bold">{hide ? MASK : `${formatWon(p.nextBill.amount)}원`}</p>
         </div>
@@ -166,7 +166,7 @@ export function HomeView(p: HomeViewProps) {
         name={
           <>
             쇼핑 예산
-            <InfoTip label="쇼핑 예산 설명" lines={shoppingLines(p.shoppingRaw, p.deferred, p.boughtCard)} />
+            <InfoTip title="쇼핑 예산" lines={shoppingLines(p.shoppingRaw, p.deferred, p.boughtCard)} />
           </>
         }
         amount={formatWon(p.shoppingRaw)}
@@ -180,7 +180,7 @@ export function HomeView(p: HomeViewProps) {
         name={
           <>
             생활비
-            <InfoTip label="생활비 설명" lines={LIVING_LINES} />
+            <InfoTip title="생활비" lines={LIVING_LINES} />
           </>
         }
         amount={formatWon(p.livingNow)}
@@ -192,7 +192,7 @@ export function HomeView(p: HomeViewProps) {
         name={
           <>
             예비비
-            <InfoTip label="예비비 설명" lines={EMERGENCY_LINES} />
+            <InfoTip title="예비비" lines={EMERGENCY_LINES} />
           </>
         }
         amount={formatWon(p.emergencyAmount)}
