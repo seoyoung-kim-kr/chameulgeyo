@@ -8,7 +8,7 @@ import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { getPastCycle, type PastCycle } from '@/lib/queries'
-import { MASK, Term, range, shoppingSub } from '../../HomeView'
+import { EMERGENCY_DESC, MASK, Term, range, shoppingSub } from '../../HomeView'
 
 // 지난 주기 보기 (읽기 전용). 이번 주기 홈(/)과 라우트를 나눈 이유: 홈은 설정 마법사·판정 진입이 걸려 있고
 // Activity 로 보존되는 화면이라, 지난 주기 상태가 섞이지 않게 한다.
@@ -61,8 +61,8 @@ function PastView({ p }: { p: PastCycle }) {
         )}
       </nav>
 
-      <Card aria-label="쓸 수 있던 돈">
-        <p className="text-sm text-muted">쓸 수 있던 돈</p>
+      <Card aria-label="그 달 배분한 돈">
+        <p className="text-sm text-muted">그 달 배분한 돈</p>
         <p className={clsx('mt-2 text-3xl font-bold', cashflow.cash < 0 ? 'text-red' : 'text-deep')}>
           {formatWon(cashflow.cash)}
           <span className="ml-0.5 text-base">원</span>
@@ -87,7 +87,9 @@ function PastView({ p }: { p: PastCycle }) {
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       />
       <Bucket name="생활비" amount={formatWon(budget.livingNow)} sub={`하루 ${formatWon(budget.livingPerDay)}원`} />
-      <Bucket tone="green" name="비상금" amount={formatWon(month.emergencyAmount)} />
+      <Bucket tone="green" name="예비비" amount={formatWon(month.emergencyAmount)}>
+        <p className="mt-2 text-xs text-muted">{EMERGENCY_DESC}</p>
+      </Bucket>
 
       <p className="py-1 text-center text-sm text-muted">
         아낀 돈 <span className="font-bold text-green">+{formatWon(p.heldTotal)}원</span> · 산 돈{' '}

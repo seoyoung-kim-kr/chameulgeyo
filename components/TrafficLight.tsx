@@ -119,7 +119,7 @@ export function TrafficLight({ result, productName, onHold, onBuy, onEdit, pendi
             <Choice
               label="생활비를 줄인다…"
               blocked={!cashOk}
-              blockedText={`이번 달 생활비가 ${formatWon(-result.livingAfter)}원 모자라요. 비상금을 깎아야 돼요.`}
+              blockedText={`이번 달 생활비가 ${formatWon(-result.livingAfter)}원 모자라요. 예비비를 깎아야 돼요.`}
               disabled={locked}
               onClick={() => onBuy('account')}
             />
