@@ -1,21 +1,23 @@
 'use client'
 
 import clsx from 'clsx'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState, useTransition, type ReactNode } from 'react'
 import { BUCKET_ICONS, Bucket } from '@/components/Bucket'
-import { Button } from '@/components/Button'
+import { Button, buttonClass } from '@/components/Button'
 import { Chip } from '@/components/Chip'
-import { Field, MoneyInput, TextInput } from '@/components/Field'
+import { Field, MoneyInput } from '@/components/Field'
 import { BottomActions, Card, Message, Screen } from '@/components/Screen'
 import { computeBudget } from '@/lib/budget'
-import { computeCashflow, type PaymentMethod } from '@/lib/cashflow'
+import { computeCashflow } from '@/lib/cashflow'
 import { cardDueDate, cycleFor, inCycle, nextCycle, shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import type { ReserveRow } from '@/lib/ledger'
-import { FIXED_MAX_COUNT, FIXED_NAME_MAX, type SaveMonthInput } from '@/lib/validation'
+import type { SaveMonthInput } from '@/lib/validation'
 import { InfoTip } from '@/components/InfoTip'
 import { CASH_LINES, EMERGENCY_LINES } from '../HomeView'
+import { FixedList, type FixedRow } from './FixedList'
 import { logout, saveMonth, setHideAmounts } from './actions'
 
 type Props = {
@@ -30,9 +32,10 @@ type Props = {
   hideAmounts: boolean
   /** 처음 쓰는 경우에만 날짜 단계부터 시작한다 */
   isFirst: boolean
+  /** 이번 주기 설정이 이미 있어 고치는 중. 한 화면에 전부 보이고, 저장 없이 닫을 수 있다 */
+  isEdit: boolean
 }
 
-type FixedRow = { key: number; name: string; amount: number; method: PaymentMethod | null }
 type Step = 1 | 2 | 3
 
 const TOTAL_STEPS = 3
@@ -44,7 +47,7 @@ const ERRORS: Record<string, string> = {
   DB: '저장하지 못했어요.\n잠시 후 다시 시도해 주세요.',
 }
 
-export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserves, hideAmounts, isFirst }: Props) {
+export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserves, hideAmounts, isFirst, isEdit }: Props) {
   const router = useRouter()
   const firstStep: Step = isFirst ? 1 : 2
   const [step, setStep] = useState<Step>(firstStep)
@@ -57,7 +60,6 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
   const [livingTarget, setLivingTarget] = useState(defaults.livingTarget)
   const [emergencyAmount, setEmergencyAmount] = useState(defaults.emergencyAmount)
   const [fixed, setFixed] = useState<FixedRow[]>(() => defaults.fixed.map((f, i) => ({ key: i, ...f })))
-  const [nextKey, setNextKey] = useState(defaults.fixed.length)
   const [error, setError] = useState<string | null>(null)
   const [hide, setHide] = useState(hideAmounts)
   const [hidePending, startHide] = useTransition()
@@ -106,22 +108,6 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
   const livingMax = Math.max(budget.available, 0)
   const livingPct = livingMax === 0 ? 0 : (Math.min(livingTarget, livingMax) / livingMax) * 100
 
-  const updateFixed = (key: number, patch: Partial<FixedRow>) =>
-    setFixed((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)))
-  const moveFixed = (key: number, dir: -1 | 1) =>
-    setFixed((rows) => {
-      const i = rows.findIndex((r) => r.key === key)
-      const j = i + dir
-      if (i < 0 || j < 0 || j >= rows.length) return rows
-      const copy = [...rows]
-      ;[copy[i], copy[j]] = [copy[j], copy[i]]
-      return copy
-    })
-  const addFixed = () => {
-    setFixed((rows) => [...rows, { key: nextKey, name: '', amount: 0, method: null }])
-    setNextKey((k) => k + 1)
-  }
-
   const submit = () => {
     setError(null)
     startTransition(async () => {
@@ -144,26 +130,35 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
     })
   }
 
+  // 고치는 중이면 세 단계를 한 화면에 전부 보인다
+  const show = (n: Step) => isEdit || step === n
   const message =
     error ??
-    (step === 2 && !fixedValid
+    (show(2) && !fixedValid
       ? '고정지출 이름을 입력해 주세요.'
-      : step === 2 && unclassified > 0
+      : show(2) && unclassified > 0
         ? `결제 수단을 고르지 않은 고정지출이 ${unclassified}건 있어요.\n고르기 전까지는 계좌 출금으로 계산해요.`
         : null)
 
   return (
     <Screen
-      title={STEP_TITLES[step]}
+      title={isEdit ? '설정' : STEP_TITLES[step]}
       sub={`${shortDate(cycle.start)}~${shortDate(cycle.end)}`}
       action={
-        <Chip>
-          {step} / {TOTAL_STEPS}
-        </Chip>
+        isEdit ? (
+          <Link href="/" className={buttonClass('text', 'h-8 px-2 text-sm')}>
+            닫기
+          </Link>
+        ) : (
+          <Chip>
+            {step} / {TOTAL_STEPS}
+          </Chip>
+        )
       }
     >
-      {step === 1 && (
+      {show(1) && (
         <>
+          {isEdit && <SectionTitle>{STEP_TITLES[1]}</SectionTitle>}
           <DayField label="월급일" value={payDay} onChange={setPayDay} />
           <DayField label="카드값 확정일" value={cardCutoffDay} onChange={setCardCutoffDay} />
           <DayField label="카드값 출금일" value={cardPayDay} onChange={setCardPayDay} />
@@ -197,8 +192,9 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
         </>
       )}
 
-      {step === 2 && (
+      {show(2) && (
         <>
+          {isEdit && <SectionTitle>{STEP_TITLES[2]}</SectionTitle>}
           <Card>
             <Field label="월급">
               <MoneyInput label="월급" value={salary} onChange={setSalary} />
@@ -207,71 +203,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
 
           <Card aria-label="고정지출">
             <Field label="고정지출" aside={<span className="font-bold text-ink">{formatWon(fixedTotal)}원</span>}>
-              <ul className="flex flex-col divide-y divide-line">
-                {fixed.map((f, i) => (
-                  <li key={f.key} className="grid grid-cols-[minmax(0,1fr)_5rem_2rem] items-center gap-2 py-3 first:pt-0">
-                    <TextInput
-                      aria-label="항목 이름"
-                      placeholder="항목 이름"
-                      maxLength={FIXED_NAME_MAX}
-                      value={f.name}
-                      invalid={f.amount > 0 && f.name.trim() === ''}
-                      onChange={(e) => updateFixed(f.key, { name: e.target.value })}
-                    />
-                    <select
-                      aria-label={`${f.name || '항목'} 결제 수단`}
-                      value={f.method ?? ''}
-                      onChange={(e) => updateFixed(f.key, { method: (e.target.value || null) as PaymentMethod | null })}
-                      className={clsx(
-                        'h-12 rounded-xl border bg-white px-2 text-sm outline-none focus:border-pink',
-                        f.method === null ? 'border-red text-red' : 'border-line text-ink',
-                      )}
-                    >
-                      <option value="">선택</option>
-                      <option value="account">계좌</option>
-                      <option value="card">카드</option>
-                    </select>
-                    <button
-                      type="button"
-                      aria-label={`${f.name || '항목'} 삭제`}
-                      className="flex size-8 items-center justify-center rounded-full text-lg text-muted active:bg-soft"
-                      onClick={() => setFixed((rows) => rows.filter((r) => r.key !== f.key))}
-                    >
-                      ×
-                    </button>
-                    <MoneyInput label={`${f.name || '항목'} 금액`} value={f.amount} onChange={(amount) => updateFixed(f.key, { amount })} />
-                    <div className="col-span-2 flex justify-end gap-1">
-                      <button
-                        type="button"
-                        aria-label={`${f.name || '항목'} 위로`}
-                        disabled={i === 0}
-                        className="flex size-8 items-center justify-center rounded-full text-muted active:bg-soft disabled:opacity-30"
-                        onClick={() => moveFixed(f.key, -1)}
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`${f.name || '항목'} 아래로`}
-                        disabled={i === fixed.length - 1}
-                        className="flex size-8 items-center justify-center rounded-full text-muted active:bg-soft disabled:opacity-30"
-                        onClick={() => moveFixed(f.key, 1)}
-                      >
-                        ▼
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {fixed.length < FIXED_MAX_COUNT && (
-                <button
-                  type="button"
-                  onClick={addFixed}
-                  className="h-12 w-full rounded-xl border border-dashed border-line text-sm text-deep active:bg-tint"
-                >
-                  + 항목 추가
-                </button>
-              )}
+              <FixedList rows={fixed} onChange={setFixed} />
             </Field>
           </Card>
 
@@ -294,7 +226,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           </Card>
 
           <Card tone="tint">
-            <p className="text-sm text-muted">
+            <p className="flex items-center text-sm text-muted">
               이번 달 배분할 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
               <InfoTip title="이번 달 배분할 돈" lines={CASH_LINES} />
             </p>
@@ -306,18 +238,21 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
         </>
       )}
 
-      {step === 3 && (
+      {show(3) && (
         <>
-          <Card tone="tint">
-            <p className="text-sm text-muted">
-              이번 달 배분할 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
-              <InfoTip title="이번 달 배분할 돈" lines={CASH_LINES} />
-            </p>
-            <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
-              {formatWon(budget.available)}
-              <span className="ml-0.5 text-base">원</span>
-            </p>
-          </Card>
+          {isEdit && <SectionTitle>{STEP_TITLES[3]}</SectionTitle>}
+          {!isEdit && (
+            <Card tone="tint">
+              <p className="flex items-center text-sm text-muted">
+                이번 달 배분할 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
+                <InfoTip title="이번 달 배분할 돈" lines={CASH_LINES} />
+              </p>
+              <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
+                {formatWon(budget.available)}
+                <span className="ml-0.5 text-base">원</span>
+              </p>
+            </Card>
+          )}
 
           <Bucket icon={BUCKET_ICONS.living} name="생활비" amount={formatWon(livingTarget)} sub={`하루 ${formatWon(budget.livingPerDay)}원`}>
             <input
@@ -367,7 +302,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
 
       <BottomActions>
         <Message>
-          {step === 3 && !message && budget.shoppingExhausted ? (
+          {show(3) && !message && budget.shoppingExhausted ? (
             <>
               이번 달은 쇼핑 예산이 없어요.
               <br />
@@ -377,21 +312,27 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
             message && <span className="whitespace-pre-line">{message}</span>
           )}
         </Message>
-        {step < 3 ? (
+        {!isEdit && step < 3 ? (
           <Button onClick={() => setStep((s) => (s + 1) as Step)} disabled={step === 2 && !fixedValid}>
             다음
           </Button>
         ) : (
-          <Button onClick={submit} disabled={pending}>
+          <Button onClick={submit} disabled={pending || !fixedValid}>
             {pending ? '저장 중…' : '저장'}
           </Button>
         )}
-        {step > 1 && (
-          <Button variant="text" onClick={() => setStep((s) => (s - 1) as Step)} disabled={pending}>
-            이전
-          </Button>
+        {isEdit ? (
+          <Link href="/" className={buttonClass('text')}>
+            저장하지 않고 닫기
+          </Link>
+        ) : (
+          step > 1 && (
+            <Button variant="text" onClick={() => setStep((s) => (s - 1) as Step)} disabled={pending}>
+              이전
+            </Button>
+          )
         )}
-        {step === 1 && (
+        {(isEdit || step === 1) && (
           <form action={logout} className="flex justify-center">
             <Button type="submit" variant="text" disabled={pending}>
               로그아웃
@@ -401,6 +342,11 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
       </BottomActions>
     </Screen>
   )
+}
+
+/** 고치는 화면의 구역 제목 (마법사의 단계 제목과 같은 말) */
+function SectionTitle({ children }: { children: ReactNode }) {
+  return <h2 className="mt-2 text-sm font-bold text-muted first:mt-0">{children}</h2>
 }
 
 function DayField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {

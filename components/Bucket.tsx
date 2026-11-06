@@ -42,7 +42,7 @@ export function Bucket({ tone = 'pink', name, amount, amountTone = 'ink', sub, s
         >
           {icon ?? <IoHeart />}
         </span>
-        <p className="min-w-0 flex-1 font-bold">{name}</p>
+        <p className="flex min-w-0 flex-1 items-center font-bold">{name}</p>
         <div className="shrink-0 text-right">
           <div className={clsx('text-lg font-bold', AMOUNT_TONES[amountTone])}>{amount}</div>
           {sub && <p className={clsx('text-xs', subTone === 'red' ? 'text-red' : 'text-muted')}>{sub}</p>}

@@ -63,7 +63,7 @@ function PastView({ p }: { p: PastCycle }) {
       </nav>
 
       <Card aria-label="그 달 배분한 돈">
-        <p className="text-sm text-muted">
+        <p className="flex items-center text-sm text-muted">
           그 달 배분한 돈
           <InfoTip title="그 달 배분한 돈" lines={CASH_LINES} />
         </p>

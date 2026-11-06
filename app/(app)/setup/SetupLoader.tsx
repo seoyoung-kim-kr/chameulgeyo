@@ -17,6 +17,7 @@ export async function SetupLoader() {
       reserves={reserves}
       hideAmounts={settings.hideAmounts}
       isFirst={!current && !previous}
+      isEdit={current !== null}
     />
   )
 }

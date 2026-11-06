@@ -62,7 +62,7 @@ export function InfoTip({ title, lines }: Props) {
         type="button"
         aria-label="설명 보기"
         onClick={() => ref.current?.showModal()}
-        className="ml-1 inline-flex size-5 items-center justify-center align-middle text-base text-muted active:text-deep"
+        className="ml-1 inline-flex size-5 shrink-0 items-center justify-center text-base leading-none text-muted active:text-deep"
       >
         <IoInformationCircle aria-hidden />
       </button>

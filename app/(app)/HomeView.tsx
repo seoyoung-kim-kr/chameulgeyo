@@ -97,7 +97,7 @@ export function HomeView(p: HomeViewProps) {
       )}
 
       <Card aria-label="이번 달 배분할 돈">
-        <p className="text-sm text-muted">
+        <p className="flex items-center text-sm text-muted">
           이번 달 배분할 돈
           <InfoTip title="이번 달 배분할 돈" lines={cashLines(p)} />
         </p>
@@ -130,7 +130,7 @@ export function HomeView(p: HomeViewProps) {
 
       <Card aria-label="다음 카드값">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm text-muted">
+          <p className="flex items-center text-sm text-muted">
             다음 카드값{p.nextBill.dueDate ? ` · ${shortDate(p.nextBill.dueDate)} 출금 예정` : ''}
             <InfoTip title="다음 카드값" lines={nextBillLines(p)} />
           </p>
