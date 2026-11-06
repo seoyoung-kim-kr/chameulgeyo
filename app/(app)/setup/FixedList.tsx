@@ -5,9 +5,9 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import clsx from 'clsx'
 import { IoClose, IoReorderThree } from 'react-icons/io5'
-import { MoneyInput, TextInput } from '@/components/Field'
 import type { PaymentMethod } from '@/lib/cashflow'
-import { FIXED_MAX_COUNT, FIXED_NAME_MAX } from '@/lib/validation'
+import { formatWon } from '@/lib/format'
+import { AMOUNT_MAX, FIXED_MAX_COUNT, FIXED_NAME_MAX } from '@/lib/validation'
 
 export type FixedRow = { key: number; name: string; amount: number; method: PaymentMethod | null }
 
@@ -56,16 +56,22 @@ export function FixedList({ rows, onChange }: Props) {
   )
 }
 
+/**
+ * 한 항목 = 한 줄. 상자 테두리 없이 글자만 두고, 포커스한 칸에만 밑줄이 생긴다.
+ *   [≡] 이름(굵게)                 30,000 원 [×]
+ *       (계좌 | 카드)
+ */
 function Row({ row: f, onUpdate, onRemove }: { row: FixedRow; onUpdate: (patch: Partial<FixedRow>) => void; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: f.key })
   const label = f.name || '항목'
+  const nameInvalid = f.amount > 0 && f.name.trim() === ''
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={clsx(
-        'grid grid-cols-[2rem_minmax(0,1fr)_5rem_2rem] items-center gap-2 py-3 first:pt-0',
-        isDragging && 'relative z-10 rounded-xl bg-white shadow-[0_8px_24px_rgba(0,0,0,.12)]',
+        'grid grid-cols-[1.5rem_minmax(0,1fr)_auto_1.5rem] items-center gap-x-2 py-3 first:pt-0',
+        isDragging && 'relative z-10 rounded-xl bg-white px-2 shadow-[0_8px_24px_rgba(0,0,0,.12)]',
       )}
     >
       <button
@@ -74,35 +80,71 @@ function Row({ row: f, onUpdate, onRemove }: { row: FixedRow; onUpdate: (patch: 
         aria-label={`${label} 순서 바꾸기`}
         {...attributes}
         {...listeners}
-        className="flex h-12 w-8 cursor-grab touch-none items-center justify-center rounded-lg text-2xl text-muted active:cursor-grabbing active:bg-soft"
+        className="row-span-2 flex h-10 w-6 cursor-grab touch-none items-center justify-center rounded-lg text-xl text-muted/50 active:cursor-grabbing active:text-muted"
       >
         <IoReorderThree aria-hidden />
       </button>
-      <TextInput
-        aria-label="항목 이름"
-        placeholder="항목 이름"
-        maxLength={FIXED_NAME_MAX}
-        value={f.name}
-        invalid={f.amount > 0 && f.name.trim() === ''}
-        onChange={(e) => onUpdate({ name: e.target.value })}
-      />
-      <select
-        aria-label={`${label} 결제 수단`}
-        value={f.method ?? ''}
-        onChange={(e) => onUpdate({ method: (e.target.value || null) as PaymentMethod | null })}
-        className={clsx(
-          'h-12 rounded-xl border bg-white px-2 text-sm outline-none focus:border-pink',
-          f.method === null ? 'border-red text-red' : 'border-line text-ink',
-        )}
+
+      <span className={clsx('flex h-8 items-center border-b', nameInvalid ? 'border-red' : 'border-transparent focus-within:border-pink')}>
+        <input
+          aria-label="항목 이름"
+          placeholder="항목 이름"
+          autoComplete="off"
+          maxLength={FIXED_NAME_MAX}
+          value={f.name}
+          onChange={(e) => onUpdate({ name: e.target.value })}
+          className="w-full min-w-0 bg-transparent text-base font-bold outline-none placeholder:font-normal placeholder:text-muted/50"
+        />
+      </span>
+
+      <span className="flex h-8 items-center gap-1 border-b border-transparent focus-within:border-pink">
+        <input
+          aria-label={`${label} 금액`}
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="0"
+          value={f.amount === 0 ? '' : formatWon(f.amount)}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+            onUpdate({ amount: Math.min(Number(digits || '0'), AMOUNT_MAX) })
+          }}
+          className="w-24 min-w-0 bg-transparent text-right text-base font-bold outline-none placeholder:font-normal placeholder:text-muted/50"
+        />
+        <span className="text-sm text-muted">원</span>
+      </span>
+
+      <button
+        type="button"
+        aria-label={`${label} 삭제`}
+        onClick={onRemove}
+        className="row-span-2 flex size-6 items-center justify-center rounded-full text-base text-muted active:bg-soft"
       >
-        <option value="">선택</option>
-        <option value="account">계좌</option>
-        <option value="card">카드</option>
-      </select>
-      <button type="button" aria-label={`${label} 삭제`} onClick={onRemove} className="flex size-8 items-center justify-center rounded-full text-lg text-muted active:bg-soft">
         <IoClose aria-hidden />
       </button>
-      <MoneyInput label={`${label} 금액`} value={f.amount} onChange={(amount) => onUpdate({ amount })} className="col-span-3 col-start-2" />
+
+      <div role="radiogroup" aria-label={`${label} 결제 수단`} className={clsx('col-span-2 mt-1 flex w-fit gap-0.5 rounded-full p-0.5', f.method === null ? 'bg-soft ring-1 ring-red' : 'bg-soft')}>
+        {METHODS.map((m) => (
+          <button
+            key={m.value}
+            type="button"
+            role="radio"
+            aria-checked={f.method === m.value}
+            onClick={() => onUpdate({ method: m.value })}
+            className={clsx(
+              'h-6 rounded-full px-2.5 text-xs transition-colors',
+              f.method === m.value ? 'bg-white font-bold text-deep shadow-sm' : 'text-muted active:text-ink',
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
+        {f.method === null && <span className="self-center pr-2 pl-1 text-xs text-red">선택</span>}
+      </div>
     </li>
   )
 }
+
+const METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'account', label: '계좌' },
+  { value: 'card', label: '카드' },
+]
