@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Suspense } from 'react'
-import { Bucket } from '@/components/Bucket'
+import { BUCKET_ICONS, Bucket } from '@/components/Bucket'
 import { buttonClass } from '@/components/Button'
 import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
@@ -83,6 +83,7 @@ function PastView({ p }: { p: PastCycle }) {
 
       <Bucket
         highlight
+        icon={BUCKET_ICONS.shopping}
         name={
           <>
             쇼핑 예산
@@ -96,6 +97,7 @@ function PastView({ p }: { p: PastCycle }) {
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       />
       <Bucket
+        icon={BUCKET_ICONS.living}
         name={
           <>
             생활비
@@ -107,6 +109,7 @@ function PastView({ p }: { p: PastCycle }) {
       />
       <Bucket
         tone="green"
+        icon={BUCKET_ICONS.emergency}
         name={
           <>
             예비비

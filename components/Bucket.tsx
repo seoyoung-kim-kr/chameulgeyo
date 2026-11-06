@@ -1,5 +1,13 @@
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
+import { IoBagHandle, IoHeart, IoRestaurant, IoUmbrella } from 'react-icons/io5'
+
+/** 통마다 다른 아이콘. 쇼핑 = 쇼핑백, 생활비 = 식사, 예비비 = 우산(비 올 때 쓰는 돈) */
+export const BUCKET_ICONS = {
+  shopping: <IoBagHandle />,
+  living: <IoRestaurant />,
+  emergency: <IoUmbrella />,
+} as const
 
 type Props = {
   tone?: 'pink' | 'green'
@@ -13,13 +21,15 @@ type Props = {
   /** 진행 바 (0~100) */
   bar?: { pct: number; label: string }
   highlight?: boolean
+  /** 왼쪽 아이콘. 없으면 하트 */
+  icon?: ReactNode
   children?: ReactNode
 }
 
 const AMOUNT_TONES = { ink: 'text-ink', deep: 'text-deep', red: 'text-red', green: 'text-green' }
 
 /** 돈 통 한 장: 아이콘 · 이름 · 금액(+ 아래 작은 글씨). 카드 규칙(안쪽 16)을 따른다. */
-export function Bucket({ tone = 'pink', name, amount, amountTone = 'ink', sub, subTone = 'muted', bar, highlight, children }: Props) {
+export function Bucket({ tone = 'pink', name, amount, amountTone = 'ink', sub, subTone = 'muted', bar, highlight, icon, children }: Props) {
   return (
     <section className={clsx('rounded-card p-4', highlight ? 'bg-tint' : 'border border-line bg-white')}>
       <div className="flex items-center gap-3">
@@ -30,7 +40,7 @@ export function Bucket({ tone = 'pink', name, amount, amountTone = 'ink', sub, s
             tone === 'pink' ? 'bg-soft text-deep' : 'bg-green-soft text-green',
           )}
         >
-          ♥
+          {icon ?? <IoHeart />}
         </span>
         <p className="min-w-0 flex-1 font-bold">{name}</p>
         <div className="shrink-0 text-right">

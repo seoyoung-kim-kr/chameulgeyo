@@ -3,7 +3,7 @@
 import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
-import { Bucket } from '@/components/Bucket'
+import { BUCKET_ICONS, Bucket } from '@/components/Bucket'
 import { Button } from '@/components/Button'
 import { Chip } from '@/components/Chip'
 import { Field, MoneyInput, TextInput } from '@/components/Field'
@@ -319,7 +319,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
             </p>
           </Card>
 
-          <Bucket name="생활비" amount={formatWon(livingTarget)} sub={`하루 ${formatWon(budget.livingPerDay)}원`}>
+          <Bucket icon={BUCKET_ICONS.living} name="생활비" amount={formatWon(livingTarget)} sub={`하루 ${formatWon(budget.livingPerDay)}원`}>
             <input
               type="range"
               aria-label="생활비"
@@ -341,6 +341,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
 
           <Bucket
             tone="green"
+            icon={BUCKET_ICONS.emergency}
             name={
               <>
                 예비비
@@ -352,6 +353,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
 
           <Bucket
             highlight
+            icon={BUCKET_ICONS.shopping}
             name={
               <>
                 쇼핑 예산 <span className="ml-1 text-xs font-normal text-muted">자동 계산</span>

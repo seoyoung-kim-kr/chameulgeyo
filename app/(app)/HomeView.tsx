@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import Link from 'next/link'
-import { Bucket } from '@/components/Bucket'
+import { BUCKET_ICONS, Bucket } from '@/components/Bucket'
 import { InfoTip } from '@/components/InfoTip'
 import { buttonClass } from '@/components/Button'
 import { BottomActions, Card, Screen } from '@/components/Screen'
@@ -162,6 +162,7 @@ export function HomeView(p: HomeViewProps) {
 
       <Bucket
         highlight
+        icon={BUCKET_ICONS.shopping}
         name={
           <>
             쇼핑 예산
@@ -175,6 +176,7 @@ export function HomeView(p: HomeViewProps) {
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       />
       <Bucket
+        icon={BUCKET_ICONS.living}
         name={
           <>
             생활비
@@ -186,6 +188,7 @@ export function HomeView(p: HomeViewProps) {
       />
       <Bucket
         tone="green"
+        icon={BUCKET_ICONS.emergency}
         name={
           <>
             예비비
