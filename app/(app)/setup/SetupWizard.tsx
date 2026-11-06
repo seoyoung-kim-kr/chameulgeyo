@@ -14,7 +14,8 @@ import { cardDueDate, cycleFor, inCycle, nextCycle, shortDate } from '@/lib/cycl
 import { formatWon } from '@/lib/format'
 import type { ReserveRow } from '@/lib/ledger'
 import { FIXED_MAX_COUNT, FIXED_NAME_MAX, type SaveMonthInput } from '@/lib/validation'
-import { EMERGENCY_DESC } from '../HomeView'
+import { InfoTip } from '@/components/InfoTip'
+import { CASH_LINES, EMERGENCY_LINES } from '../HomeView'
 import { logout, saveMonth, setHideAmounts } from './actions'
 
 type Props = {
@@ -279,7 +280,11 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
               <Field label="이번 카드값" aside={<span>{shortDate(thisDue)} 출금</span>}>
                 <MoneyInput label="이번 카드값" value={thisBill} onChange={setThisBill} />
                 {carried > 0 && (
-                  <p className="mt-2 text-xs text-red">지난 달에 예산을 넘겨 카드로 산 {formatWon(carried)}원이 들어 있어요. 이번 월급에서 빠져요.</p>
+                  <p className="mt-2 text-xs text-red">
+                    지난 달에 예산을 넘겨 카드로 산 {formatWon(carried)}원이 들어 있어요.
+                    <br />
+                    이번 월급에서 빠져요.
+                  </p>
                 )}
               </Field>
               <Field label="다음 카드값" aside={<span>{shortDate(nextDue)} 출금 예정</span>}>
@@ -291,12 +296,12 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           <Card tone="tint">
             <p className="text-sm text-muted">
               이번 달 배분할 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
+              <InfoTip label="이번 달 배분할 돈 설명" lines={CASH_LINES} />
             </p>
             <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
               {formatWon(budget.available)}
               <span className="ml-0.5 text-base">원</span>
             </p>
-            <p className="mt-1 text-xs text-muted">월급에서 고정지출과 카드값을 제외한 금액이에요.</p>
           </Card>
         </>
       )}
@@ -306,12 +311,12 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           <Card tone="tint">
             <p className="text-sm text-muted">
               이번 달 배분할 돈 · {shortDate(cycle.start)}~{shortDate(cycle.end)}
+              <InfoTip label="이번 달 배분할 돈 설명" lines={CASH_LINES} />
             </p>
             <p className={clsx('mt-2 text-3xl font-bold', budget.available < 0 ? 'text-red' : 'text-deep')}>
               {formatWon(budget.available)}
               <span className="ml-0.5 text-base">원</span>
             </p>
-            <p className="mt-1 text-xs text-muted">월급에서 고정지출과 카드값을 제외한 금액이에요.</p>
           </Card>
 
           <Bucket name="생활비" amount={formatWon(livingTarget)} sub={`하루 ${formatWon(budget.livingPerDay)}원`}>
@@ -334,9 +339,16 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
             </div>
           </Bucket>
 
-          <Bucket tone="green" name="예비비" amount={<MoneyInput label="예비비" value={emergencyAmount} onChange={setEmergencyAmount} className="w-36" />}>
-        <p className="mt-2 text-xs text-muted">{EMERGENCY_DESC}</p>
-      </Bucket>
+          <Bucket
+            tone="green"
+            name={
+              <>
+                예비비
+                <InfoTip label="예비비 설명" lines={EMERGENCY_LINES} />
+              </>
+            }
+            amount={<MoneyInput label="예비비" value={emergencyAmount} onChange={setEmergencyAmount} className="w-36" />}
+          />
 
           <Bucket
             highlight

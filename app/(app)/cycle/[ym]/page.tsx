@@ -8,7 +8,8 @@ import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { getPastCycle, type PastCycle } from '@/lib/queries'
-import { EMERGENCY_DESC, MASK, ShoppingNote, Term, range } from '../../HomeView'
+import { InfoTip } from '@/components/InfoTip'
+import { CASH_LINES, EMERGENCY_LINES, LIVING_LINES, MASK, Term, range, shoppingLines } from '../../HomeView'
 
 // 지난 주기 보기 (읽기 전용). 이번 주기 홈(/)과 라우트를 나눈 이유: 홈은 설정 마법사·판정 진입이 걸려 있고
 // Activity 로 보존되는 화면이라, 지난 주기 상태가 섞이지 않게 한다.
@@ -62,7 +63,10 @@ function PastView({ p }: { p: PastCycle }) {
       </nav>
 
       <Card aria-label="그 달 배분한 돈">
-        <p className="text-sm text-muted">그 달 배분한 돈</p>
+        <p className="text-sm text-muted">
+          그 달 배분한 돈
+          <InfoTip label="그 달 배분한 돈 설명" lines={CASH_LINES} />
+        </p>
         <p className={clsx('mt-2 text-3xl font-bold', cashflow.cash < 0 ? 'text-red' : 'text-deep')}>
           {formatWon(cashflow.cash)}
           <span className="ml-0.5 text-base">원</span>
@@ -79,19 +83,38 @@ function PastView({ p }: { p: PastCycle }) {
 
       <Bucket
         highlight
-        name="쇼핑 예산"
+        name={
+          <>
+            쇼핑 예산
+            <InfoTip label="쇼핑 예산 설명" lines={shoppingLines(budget.shoppingRaw, budget.deferred, p.boughtCard)} />
+          </>
+        }
         amount={formatWon(budget.shoppingRaw)}
         amountTone={budget.shoppingExhausted ? 'red' : 'deep'}
         sub={budget.shoppingExhausted ? `${formatWon(-budget.shoppingRaw)}원 초과` : undefined}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
-      >
-        <ShoppingNote shoppingRaw={budget.shoppingRaw} deferred={budget.deferred} boughtCard={p.boughtCard} />
-      </Bucket>
-      <Bucket name="생활비" amount={formatWon(budget.livingNow)} sub={`하루 ${formatWon(budget.livingPerDay)}원`} />
-      <Bucket tone="green" name="예비비" amount={formatWon(month.emergencyAmount)}>
-        <p className="mt-2 text-xs text-muted">{EMERGENCY_DESC}</p>
-      </Bucket>
+      />
+      <Bucket
+        name={
+          <>
+            생활비
+            <InfoTip label="생활비 설명" lines={LIVING_LINES} />
+          </>
+        }
+        amount={formatWon(budget.livingNow)}
+        sub={`하루 ${formatWon(budget.livingPerDay)}원`}
+      />
+      <Bucket
+        tone="green"
+        name={
+          <>
+            예비비
+            <InfoTip label="예비비 설명" lines={EMERGENCY_LINES} />
+          </>
+        }
+        amount={formatWon(month.emergencyAmount)}
+      />
 
       <p className="py-1 text-center text-sm text-muted">
         아낀 돈 <span className="font-bold text-green">+{formatWon(p.heldTotal)}원</span> · 산 돈{' '}
