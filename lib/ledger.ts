@@ -66,6 +66,8 @@ export type Ledger = {
   boughtKept: number
   /** 이번 주기에 "안 산다"로 기록한 금액 합 */
   heldTotal: number
+  /** boughtTotal 중 카드로 산 금액 (카드값에 들어 있는 돈) */
+  boughtCard: number
   /** 이번·다음 주기 대금에 들어갈 카드 결제 준비금 (앱에서 산 것, 출금일 기준) */
   reserves: ReserveRow[]
 }
@@ -130,10 +132,12 @@ async function computeLedger(q: Executor, userId: number, s: Settings, cycle: Cy
   let boughtKept = 0
   let heldTotal = 0
   let deferred = 0
+  let boughtCard = 0
   for (const d of chosen) {
     if (d.choice === 'bought') {
       boughtTotal += d.price
       deferred += d.price - reservedOf(d)
+      if (d.paymentMethod !== 'account') boughtCard += d.price
       if (!d.canceledAt) boughtKept += d.price
     } else heldTotal += d.price
   }
@@ -156,7 +160,7 @@ async function computeLedger(q: Executor, userId: number, s: Settings, cycle: Cy
     deferred,
     cycleDays: cycle.days,
   })
-  return { settings: s, cycle, next, month, bills, cashflow, budget, boughtTotal, boughtKept, heldTotal, reserves }
+  return { settings: s, cycle, next, month, bills, cashflow, budget, boughtTotal, boughtKept, heldTotal, boughtCard, reserves }
 }
 
 /**

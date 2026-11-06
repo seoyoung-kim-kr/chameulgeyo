@@ -8,7 +8,7 @@ import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { getPastCycle, type PastCycle } from '@/lib/queries'
-import { EMERGENCY_DESC, MASK, Term, range, shoppingSub } from '../../HomeView'
+import { EMERGENCY_DESC, MASK, ShoppingNote, Term, range } from '../../HomeView'
 
 // 지난 주기 보기 (읽기 전용). 이번 주기 홈(/)과 라우트를 나눈 이유: 홈은 설정 마법사·판정 진입이 걸려 있고
 // Activity 로 보존되는 화면이라, 지난 주기 상태가 섞이지 않게 한다.
@@ -82,10 +82,12 @@ function PastView({ p }: { p: PastCycle }) {
         name="쇼핑 예산"
         amount={formatWon(budget.shoppingRaw)}
         amountTone={budget.shoppingExhausted ? 'red' : 'deep'}
-        sub={shoppingSub(budget.shoppingRaw, budget.deferred)}
+        sub={budget.shoppingExhausted ? `쇼핑 예산 ${formatWon(-budget.shoppingRaw)}원 초과` : undefined}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
-      />
+      >
+        <ShoppingNote shoppingRaw={budget.shoppingRaw} deferred={budget.deferred} boughtCard={p.boughtCard} />
+      </Bucket>
       <Bucket name="생활비" amount={formatWon(budget.livingNow)} sub={`하루 ${formatWon(budget.livingPerDay)}원`} />
       <Bucket tone="green" name="예비비" amount={formatWon(month.emergencyAmount)}>
         <p className="mt-2 text-xs text-muted">{EMERGENCY_DESC}</p>
