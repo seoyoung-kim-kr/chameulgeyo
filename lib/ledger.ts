@@ -48,6 +48,9 @@ export const toCardBill = (b: CardBillRow): CardBill => ({
   includesCardFixed: b.includesCardFixed,
 })
 
+/** 준비금 한 건 + 그 구매에서 다음 달로 미룬 금액 (= 가격 − 준비금) */
+export type ReserveRow = Reserve & { deferred: number }
+
 export type Ledger = {
   settings: Settings
   cycle: Cycle
@@ -63,8 +66,10 @@ export type Ledger = {
   boughtKept: number
   /** 이번 주기에 "안 산다"로 기록한 금액 합 */
   heldTotal: number
+  /** boughtTotal 중 카드로 산 금액 (카드값에 들어 있는 돈) */
+  boughtCard: number
   /** 이번·다음 주기 대금에 들어갈 카드 결제 준비금 (앱에서 산 것, 출금일 기준) */
-  reserves: Reserve[]
+  reserves: ReserveRow[]
 }
 
 /**
@@ -72,6 +77,15 @@ export type Ledger = {
  * (출금 뒤 환불은 원래 대금을 준비금으로 이미 냈으므로 그대로 두고, 환불은 다음 청구에서 빠진다)
  */
 const stillConsumed = or(isNull(decisions.canceledAt), not(decisions.refundBeforeBilling))
+
+/** 카드 구매. null 은 0005 이전 기록 (그때는 전부 카드였다) */
+const paidByCard = or(isNull(decisions.paymentMethod), eq(decisions.paymentMethod, 'card'))
+
+/** 기록 한 건이 이번 주기 쇼핑 예산으로 묶은 금액. 계좌 구매는 전액, 카드 구매는 reserve_amount (null 이면 전액) */
+export function reservedOf(d: { price: number; paymentMethod: 'account' | 'card' | null; reserveAmount: number | null }): number {
+  if (d.paymentMethod === 'account') return d.price
+  return Math.min(d.reserveAmount ?? d.price, d.price)
+}
 
 /** 준비금 계산에 볼 과거 구매 범위. 사용일 → 출금일은 길어야 두 달 남짓이다 */
 const RESERVE_LOOKBACK_DAYS = 100
@@ -105,15 +119,25 @@ async function computeLedger(q: Executor, userId: number, s: Settings, cycle: Cy
   const next = nextCycle(cycle, s.payDay)
   const bills = await readBills(q, userId, cycle.start, next.end)
   const chosen = await q
-    .select({ price: decisions.price, choice: decisions.choice, canceledAt: decisions.canceledAt })
+    .select({
+      price: decisions.price,
+      choice: decisions.choice,
+      canceledAt: decisions.canceledAt,
+      paymentMethod: decisions.paymentMethod,
+      reserveAmount: decisions.reserveAmount,
+    })
     .from(decisions)
     .where(and(eq(decisions.userId, userId), eq(decisions.monthId, month.id), stillConsumed))
   let boughtTotal = 0
   let boughtKept = 0
   let heldTotal = 0
+  let deferred = 0
+  let boughtCard = 0
   for (const d of chosen) {
     if (d.choice === 'bought') {
       boughtTotal += d.price
+      deferred += d.price - reservedOf(d)
+      if (d.paymentMethod !== 'account') boughtCard += d.price
       if (!d.canceledAt) boughtKept += d.price
     } else heldTotal += d.price
   }
@@ -133,14 +157,16 @@ async function computeLedger(q: Executor, userId: number, s: Settings, cycle: Cy
     livingTarget: month.livingTarget,
     emergencyAmount: month.emergencyAmount,
     spentShopping: boughtTotal,
+    deferred,
     cycleDays: cycle.days,
   })
-  return { settings: s, cycle, next, month, bills, cashflow, budget, boughtTotal, boughtKept, heldTotal, reserves }
+  return { settings: s, cycle, next, month, bills, cashflow, budget, boughtTotal, boughtKept, heldTotal, boughtCard, reserves }
 }
 
 /**
- * 카드 결제 준비금: 지난 주기에 산 것까지 포함해, 이번·다음 주기에 출금될 "산다" 구매만 고른다.
+ * 카드 결제 준비금: 지난 주기에 산 것까지 포함해, 이번·다음 주기에 출금될 카드 구매만 고른다.
  * 볼 범위는 그 주기 시작일 기준으로 잡는다 (지난 주기를 볼 때도 같은 결과가 나오게).
+ * 출금일은 구매 때 저장한 값(due_date)을 쓰고, 없으면(0005 이전) 지금 설정으로 계산한다.
  */
 export async function readReserves(
   q: Executor,
@@ -148,13 +174,22 @@ export async function readReserves(
   s: Pick<Settings, 'cardCutoffDay' | 'cardPayDay'>,
   cycle: Cycle,
   next: Cycle,
-): Promise<Reserve[]> {
+): Promise<ReserveRow[]> {
   const since = new Date(Date.parse(`${cycle.start}T00:00:00+09:00`) - RESERVE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
   const bought = await q
-    .select({ price: decisions.price, decidedAt: decisions.decidedAt })
+    .select({
+      price: decisions.price,
+      decidedAt: decisions.decidedAt,
+      paymentMethod: decisions.paymentMethod,
+      reserveAmount: decisions.reserveAmount,
+      dueDate: decisions.dueDate,
+    })
     .from(decisions)
-    .where(and(eq(decisions.userId, userId), eq(decisions.choice, 'bought'), gte(decisions.decidedAt, since), stillConsumed))
+    .where(and(eq(decisions.userId, userId), eq(decisions.choice, 'bought'), gte(decisions.decidedAt, since), stillConsumed, paidByCard))
   return bought
-    .map((d) => ({ dueDate: statementDueDate(todayKst(d.decidedAt), s.cardCutoffDay, s.cardPayDay), amount: d.price }))
+    .map((d) => {
+      const amount = reservedOf(d)
+      return { dueDate: d.dueDate ?? statementDueDate(todayKst(d.decidedAt), s.cardCutoffDay, s.cardPayDay), amount, deferred: d.price - amount }
+    })
     .filter((r) => inCycle(r.dueDate, cycle) || inCycle(r.dueDate, next))
 }

@@ -33,8 +33,8 @@ async function main() {
 
   try {
     // 1) 순차 재시도: 같은 id 두 번
-    const a = await chooseInternal(USER, { id: ids[0], name: '멱등성 확인', price: PRICE, choice: 'bought' })
-    const b = await chooseInternal(USER, { id: ids[0], name: '멱등성 확인', price: PRICE, choice: 'bought' })
+    const a = await chooseInternal(USER, { id: ids[0], name: '멱등성 확인', price: PRICE, choice: 'bought', paymentMethod: 'card' })
+    const b = await chooseInternal(USER, { id: ids[0], name: '멱등성 확인', price: PRICE, choice: 'bought', paymentMethod: 'card' })
     check(a.ok && !a.data.duplicated, '첫 호출은 삽입')
     check(b.ok && b.data.duplicated, '두 번째 호출은 duplicated: true')
     const mid = await snapshot()
@@ -45,8 +45,8 @@ async function main() {
 
     // 2) 동시 더블탭: 같은 id 두 요청이 겹쳐 도착
     const [c, d] = await Promise.all([
-      chooseInternal(USER, { id: ids[1], name: null, price: PRICE, choice: 'bought' }),
-      chooseInternal(USER, { id: ids[1], name: null, price: PRICE, choice: 'bought' }),
+      chooseInternal(USER, { id: ids[1], name: null, price: PRICE, choice: 'bought', paymentMethod: 'card' }),
+      chooseInternal(USER, { id: ids[1], name: null, price: PRICE, choice: 'bought', paymentMethod: 'card' }),
     ])
     const dup = [c, d].filter((r) => r.ok && r.data.duplicated).length
     check(c.ok && d.ok && dup === 1, '동시 2회 → 하나만 삽입, 하나는 duplicated')

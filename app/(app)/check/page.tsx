@@ -41,8 +41,20 @@ async function CheckLoader() {
       </>
     )
   }
-  const { budget, month, cycle } = home
-  return <CheckFlow shoppingRaw={budget.shoppingRaw} livingTarget={month.livingTarget} cycleDays={cycle.days} />
+  const { budget, month, cycle, next, cashflow } = home
+  return (
+    <CheckFlow
+      ctx={{
+        shoppingRaw: budget.shoppingRaw,
+        deferred: budget.deferred,
+        livingTarget: month.livingTarget,
+        emergencyAmount: month.emergencyAmount,
+        cycleDays: cycle.days,
+        nextCash: cashflow.nextCash,
+        nextCycleDays: next.days,
+      }}
+    />
+  )
 }
 
 function CheckSkeleton() {

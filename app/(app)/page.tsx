@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { inCycle } from '@/lib/cycle'
 import { getHomeData } from '@/lib/queries'
 import { HomeView } from './HomeView'
 import { SetupLoader } from './setup/SetupLoader'
@@ -17,6 +18,7 @@ async function HomeLoader() {
   // 이번 주기 설정 전이면 홈 자리에서 바로 설정한다 (redirect 하지 않는 이유는 getHomeData 주석)
   if (!home) return <SetupLoader />
   const { cycle, next, month, cashflow, budget } = home
+  const deferredIn = (c: typeof cycle) => home.reserves.filter((r) => inCycle(r.dueDate, c)).reduce((sum, r) => sum + r.deferred, 0)
   return (
     <HomeView
       ym={cycle.ym}
@@ -28,8 +30,8 @@ async function HomeLoader() {
       fixedCashOut={cashflow.fixed.cashOut}
       fixedCard={cashflow.fixed.card}
       unclassifiedCount={cashflow.fixed.unclassifiedCount}
-      thisBill={cashflow.thisBill}
-      nextBill={cashflow.nextBill}
+      thisBill={{ ...cashflow.thisBill, deferred: deferredIn(cycle) }}
+      nextBill={{ ...cashflow.nextBill, deferred: deferredIn(next) }}
       nextBillStaleDays={home.nextBillStaleDays}
       isCutoff={home.isCutoff}
       cash={cashflow.cash}
@@ -37,6 +39,8 @@ async function HomeLoader() {
       shopping={budget.shopping}
       shoppingRaw={budget.shoppingRaw}
       shoppingExhausted={budget.shoppingExhausted}
+      deferred={budget.deferred}
+      boughtCard={home.boughtCard}
       shoppingBudgetStart={month.shoppingBudgetStart}
       boughtTotal={home.boughtTotal}
       livingNow={budget.livingNow}

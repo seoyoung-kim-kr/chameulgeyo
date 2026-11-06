@@ -44,8 +44,10 @@ export async function saveMonth(input: SaveMonthInput): Promise<ActionResult> {
             set: { payDay: v.payDay, cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay },
           })
 
-        await upsertCycleBill(tx, userId, cycle, cardDueDate(cycle, v.cardPayDay), { amount: v.thisBill })
-        await upsertCycleBill(tx, userId, next, cardDueDate(next, v.cardPayDay), { amount: v.nextBill })
+        // 마법사에 적는 숫자는 카드 앱의 실제 청구액(카드 고정지출 포함)이다. "산다"가 만들어 둔 행(미포함)을 물려받으면
+        // 카드 고정지출이 한 번 더 빠지므로 포함으로 명시한다 (미리보기와 같은 계산)
+        await upsertCycleBill(tx, userId, cycle, cardDueDate(cycle, v.cardPayDay), { amount: v.thisBill, includesCardFixed: true })
+        await upsertCycleBill(tx, userId, next, cardDueDate(next, v.cardPayDay), { amount: v.nextBill, includesCardFixed: true })
 
         // 쇼핑 예산 스냅샷: 이번 주기 현금에서 생활비·비상금을 뺀 값 (산 것은 아직 없다고 본다)
         const reserves = await readReserves(tx, userId, { cardCutoffDay: v.cardCutoffDay, cardPayDay: v.cardPayDay }, cycle, next)

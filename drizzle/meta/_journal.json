@@ -36,6 +36,13 @@
       "when": 1793844052747,
       "tag": "0004_users_and_cycle_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793938077336,
+      "tag": "0005_decision_payment_method",
+      "breakpoints": true
     }
   ]
 }

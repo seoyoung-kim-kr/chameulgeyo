@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import Link from 'next/link'
-import { Bucket } from '@/components/Bucket'
+import { BUCKET_ICONS, Bucket } from '@/components/Bucket'
+import { InfoTip } from '@/components/InfoTip'
 import { buttonClass } from '@/components/Button'
 import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
@@ -8,6 +9,11 @@ import { formatWon } from '@/lib/format'
 
 /** 다음 카드값을 이만큼 안 옮겨 적으면 확인하라고 알린다 */
 const STALE_DAYS = 3
+
+/** ⓘ 설명. 한 문장이 한 줄 */
+export const CASH_LINES = ['월급에서 고정지출과 카드값을 제외한 금액이에요.']
+export const EMERGENCY_LINES = ['예상하지 못한 지출에 대비해 이번 주기에 따로 남겨두는 돈이에요.']
+export const LIVING_LINES = ['쇼핑 예산을 넘겨서 현금으로 산 만큼 줄어요.', '카드로 산 건 다음 달 카드값으로 빠져요.']
 
 /** 가린 금액 자리. 자릿수가 드러나지 않게 길이를 고정한다 */
 export const MASK = '••••••'
@@ -24,16 +30,21 @@ export type HomeViewProps = {
   /** 카드로 결제하는 고정지출 (카드값에 들어 있어 따로 빼지 않음) */
   fixedCard: number
   unclassifiedCount: number
-  thisBill: { dueDate: string | null; amount: number; reserved: number; fromCash: number; paid: number; remaining: number }
-  nextBill: { dueDate: string | null; amount: number; reserved: number; fromCash: number }
+  /** reserved = 살 때 쇼핑 예산에서 빼 두고 출금일까지 통장에 남겨 둘 돈, deferred = 그 구매 중 쇼핑 예산을 넘겨 월급에서 빠지는 돈 */
+  thisBill: { dueDate: string | null; amount: number; reserved: number; fromCash: number; paid: number; remaining: number; deferred: number }
+  nextBill: { dueDate: string | null; amount: number; reserved: number; fromCash: number; deferred: number }
   nextBillStaleDays: number | null
   isCutoff: boolean
-  /** 이번 주기에 쓸 수 있는 돈 (현금) */
+  /** 이번 달 배분할 돈 (현금): 월급 − 고정지출 − 카드값 */
   cash: number
   nextCash: number
   shopping: number
   shoppingRaw: number
   shoppingExhausted: boolean
+  /** 카드로 다음 달에 미룬 금액 (예산을 넘긴 카드 구매) */
+  deferred: number
+  /** 이번 주기에 카드로 산 금액 합 */
+  boughtCard: number
   shoppingBudgetStart: number
   boughtTotal: number
   livingNow: number
@@ -51,7 +62,7 @@ export const range = (a: string, b: string) => `${shortDate(a)}~${shortDate(b)}`
 export function HomeView(p: HomeViewProps) {
   const stale = p.nextBillStaleDays === null || p.nextBillStaleDays >= STALE_DAYS
   const hide = p.hideAmounts
-  // 월급·고정지출·카드값만 가린다. 쓸 수 있는 돈·예산·판정 금액은 그대로 보인다
+  // 월급·고정지출·카드값만 가린다. 배분할 돈·예산·판정 금액은 그대로 보인다
   const priv = (n: number) => (hide ? MASK : formatWon(n))
   // 이번 주기 처음 정한 쇼핑 예산 중 얼마나 남았는지
   const barPct = p.shoppingBudgetStart > 0 ? (p.shopping / p.shoppingBudgetStart) * 100 : 0
@@ -85,8 +96,11 @@ export function HomeView(p: HomeViewProps) {
         </Link>
       )}
 
-      <Card aria-label="이번 주기에 쓸 수 있는 돈">
-        <p className="text-sm text-muted">이번 주기에 쓸 수 있는 돈</p>
+      <Card aria-label="이번 달 배분할 돈">
+        <p className="flex items-center text-sm text-muted">
+          이번 달 배분할 돈
+          <InfoTip title="이번 달 배분할 돈" lines={cashLines(p)} />
+        </p>
         <p className={clsx('mt-2 text-3xl font-bold', p.cash < 0 ? 'text-red' : 'text-deep')}>
           {formatWon(p.cash)}
           <span className="ml-0.5 text-base">원</span>
@@ -111,62 +125,78 @@ export function HomeView(p: HomeViewProps) {
           ) : (
             <p>{shortDate(p.thisBill.dueDate)} 카드값은 이미 빠졌어요.</p>
           )}
-          {p.thisBill.reserved > 0 && (
-            <p>
-              확인하고 산 {formatWon(p.thisBill.reserved)}원은 살 때 쇼핑 예산에서 뺐어요.
-              <br />
-              {hide ? '그래서 이번 월급에서는 그만큼 덜 빼요.' : `그래서 이번 월급에서는 ${formatWon(p.thisBill.fromCash)}원만 빼요.`}
-            </p>
-          )}
-          {p.fixedCard > 0 && (
-            <p>
-              {hide
-                ? '카드 고정지출은 카드값에 들어 있어 따로 빼지 않아요.'
-                : `카드 고정지출 ${formatWon(p.fixedCard)}원은 카드값에 들어 있어 따로 빼지 않아요.`}
-            </p>
-          )}
         </div>
       </Card>
 
-      <Link href="/card" className="rounded-card border border-line bg-white p-4 active:bg-tint" aria-label="다음 카드값">
+      <Card aria-label="다음 카드값">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm text-muted">
+          <p className="flex items-center text-sm text-muted">
             다음 카드값{p.nextBill.dueDate ? ` · ${shortDate(p.nextBill.dueDate)} 출금 예정` : ''}
+            <InfoTip title="다음 카드값" lines={nextBillLines(p)} />
           </p>
           <p className="text-lg font-bold">{hide ? MASK : `${formatWon(p.nextBill.amount)}원`}</p>
         </div>
         {p.nextBill.reserved > 0 && (
           <dl className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-tint p-3 text-center">
-            <Term label="확인하고 산 물건" value={formatWon(p.nextBill.reserved)} />
+            <Term label="남겨둘 돈" value={formatWon(p.nextBill.reserved)} />
             <Term label="월급에서 낼 돈" value={priv(p.nextBill.fromCash)} />
           </dl>
         )}
         <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
-          {p.nextBill.reserved > 0 && (
-            <p>
-              확인하고 산 {formatWon(p.nextBill.reserved)}원은 살 때 쇼핑 예산에서 뺐어요.
+          {p.nextBill.reserved > 0 && p.livingNow < 0 && (
+            <p className="text-red">
+              이번 달 생활비가 모자라요.
               <br />
-              {hide ? '그래서 월급에서는 그만큼 덜 빼요.' : `그래서 월급에서는 ${formatWon(p.nextBill.fromCash)}원만 빼요.`}
+              못 남긴 만큼 다음 월급에서 더 빠져요.
             </p>
           )}
           <p>
             다음 주기({range(p.nextStart, p.nextEnd)}) 예상 현금{' '}
             <b className={p.nextCash < 0 ? 'text-red' : 'text-ink'}>{formatWon(p.nextCash)}원</b>
           </p>
+          <Link href="/card" className="self-end font-bold text-deep active:opacity-70">
+            카드값 고치기 ›
+          </Link>
         </div>
-      </Link>
+      </Card>
 
       <Bucket
         highlight
-        name="쇼핑 예산"
-        amount={formatWon(p.shopping)}
+        icon={BUCKET_ICONS.shopping}
+        name={
+          <>
+            쇼핑 예산
+            <InfoTip title="쇼핑 예산" lines={shoppingLines(p.shoppingRaw, p.deferred, p.boughtCard)} />
+          </>
+        }
+        amount={formatWon(p.shoppingRaw)}
         amountTone={p.shoppingExhausted ? 'red' : 'deep'}
-        sub={p.shoppingExhausted ? `생활비 ${formatWon(-p.shoppingRaw)}원 부족` : undefined}
+        sub={p.shoppingExhausted ? `${formatWon(-p.shoppingRaw)}원 초과` : undefined}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       />
-      <Bucket name="생활비" amount={formatWon(p.livingNow)} sub={`하루 ${formatWon(p.livingPerDay)}원`} />
-      <Bucket tone="green" name="비상금" amount={formatWon(p.emergencyAmount)} />
+      <Bucket
+        icon={BUCKET_ICONS.living}
+        name={
+          <>
+            생활비
+            <InfoTip title="생활비" lines={LIVING_LINES} />
+          </>
+        }
+        amount={formatWon(p.livingNow)}
+        sub={`하루 ${formatWon(p.livingPerDay)}원`}
+      />
+      <Bucket
+        tone="green"
+        icon={BUCKET_ICONS.emergency}
+        name={
+          <>
+            예비비
+            <InfoTip title="예비비" lines={EMERGENCY_LINES} />
+          </>
+        }
+        amount={formatWon(p.emergencyAmount)}
+      />
 
       <p className="py-1 text-center text-sm text-muted">
         이번 달 아낀 돈 <span className="font-bold text-green">+{formatWon(p.heldTotal)}원</span>
@@ -192,6 +222,51 @@ export function HomeView(p: HomeViewProps) {
       </BottomActions>
     </Screen>
   )
+}
+
+/** 이번 달 배분할 돈 ⓘ: 계산 근거와 카드값에 묶인 돈 */
+function cashLines(p: HomeViewProps): string[] {
+  const hide = p.hideAmounts
+  const lines = [...CASH_LINES]
+  if (p.thisBill.reserved > 0) {
+    lines.push(`${formatWon(p.thisBill.reserved)}원은 지난 달에 남겨 둔 돈으로 내요.`)
+    lines.push(hide ? '이번 월급에서는 그만큼 덜 빼요.' : `이번 월급에서는 ${formatWon(p.thisBill.fromCash)}원만 빼요.`)
+    if (p.thisBill.deferred > 0) lines.push(`그중 ${formatWon(p.thisBill.deferred)}원은 지난 달 쇼핑 예산을 넘긴 금액이에요.`)
+  }
+  if (p.nextBill.reserved > 0) {
+    lines.push(`이 중 ${formatWon(p.nextBill.reserved)}원은 카드값으로 남겨둘 돈이에요.`)
+    if (p.nextBill.dueDate) lines.push(`${shortDate(p.nextBill.dueDate)}까지 통장에 남겨 두세요.`)
+  }
+  if (p.fixedCard > 0) {
+    lines.push(hide ? '카드 고정지출은 카드값에 들어 있어 따로 빼지 않아요.' : `카드 고정지출 ${formatWon(p.fixedCard)}원은 카드값에 들어 있어 따로 빼지 않아요.`)
+  }
+  return lines
+}
+
+/** 다음 카드값 ⓘ: 남겨둘 돈과 다음 월급에서 낼 돈 */
+function nextBillLines(p: HomeViewProps): string[] {
+  const hide = p.hideAmounts
+  const lines = ['카드 앱의 다음 결제 예정 금액이에요.']
+  if (p.nextBill.reserved > 0) {
+    lines.push(`${formatWon(p.nextBill.reserved)}원은 살 때 쇼핑 예산에서 뺀 돈이에요.`)
+    if (p.nextBill.dueDate) lines.push(`${shortDate(p.nextBill.dueDate)}까지 통장에 남겨 두세요.`)
+    lines.push(hide ? '나머지는 다음 월급에서 내요.' : `나머지 ${formatWon(p.nextBill.fromCash)}원은 다음 월급에서 내요.`)
+    if (p.nextBill.deferred > 0) lines.push(`그중 ${formatWon(p.nextBill.deferred)}원은 쇼핑 예산을 넘긴 금액이에요.`)
+  }
+  return lines
+}
+
+/**
+ * 쇼핑 예산 ⓘ. 카드로 산 돈은 지금 통장에서 안 나가고 카드값으로 빠진다는 것과,
+ * 예산을 넘긴 돈이 어디서 나가는지(카드면 다음 월급, 현금이면 이번 달 생활비).
+ */
+export function shoppingLines(shoppingRaw: number, deferred: number, boughtCard: number): string[] {
+  const fromLiving = Math.max(-(shoppingRaw + deferred), 0)
+  const lines = ['이번 주기에 쇼핑에 쓸 수 있는 돈이에요.']
+  if (boughtCard > 0) lines.push(`카드로 산 ${formatWon(boughtCard)}원은 지금 통장에서 안 나가고 카드값으로 빠져요.`)
+  if (deferred > 0) lines.push(`넘긴 ${formatWon(deferred)}원은 다음 월급에서 빠져요.`)
+  if (fromLiving > 0) lines.push(`넘긴 ${formatWon(fromLiving)}원은 이번 달 생활비에서 빠져요.`)
+  return lines
 }
 
 export function Term({ label, value }: { label: string; value: string }) {

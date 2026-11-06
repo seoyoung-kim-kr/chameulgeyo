@@ -2,13 +2,14 @@ import clsx from 'clsx'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Suspense } from 'react'
-import { Bucket } from '@/components/Bucket'
+import { BUCKET_ICONS, Bucket } from '@/components/Bucket'
 import { buttonClass } from '@/components/Button'
 import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { getPastCycle, type PastCycle } from '@/lib/queries'
-import { MASK, Term, range } from '../../HomeView'
+import { InfoTip } from '@/components/InfoTip'
+import { CASH_LINES, EMERGENCY_LINES, LIVING_LINES, MASK, Term, range, shoppingLines } from '../../HomeView'
 
 // 지난 주기 보기 (읽기 전용). 이번 주기 홈(/)과 라우트를 나눈 이유: 홈은 설정 마법사·판정 진입이 걸려 있고
 // Activity 로 보존되는 화면이라, 지난 주기 상태가 섞이지 않게 한다.
@@ -61,8 +62,11 @@ function PastView({ p }: { p: PastCycle }) {
         )}
       </nav>
 
-      <Card aria-label="쓸 수 있던 돈">
-        <p className="text-sm text-muted">쓸 수 있던 돈</p>
+      <Card aria-label="그 달 배분한 돈">
+        <p className="flex items-center text-sm text-muted">
+          그 달 배분한 돈
+          <InfoTip title="그 달 배분한 돈" lines={CASH_LINES} />
+        </p>
         <p className={clsx('mt-2 text-3xl font-bold', cashflow.cash < 0 ? 'text-red' : 'text-deep')}>
           {formatWon(cashflow.cash)}
           <span className="ml-0.5 text-base">원</span>
@@ -79,15 +83,41 @@ function PastView({ p }: { p: PastCycle }) {
 
       <Bucket
         highlight
-        name="쇼핑 예산"
-        amount={formatWon(budget.shopping)}
+        icon={BUCKET_ICONS.shopping}
+        name={
+          <>
+            쇼핑 예산
+            <InfoTip title="쇼핑 예산" lines={shoppingLines(budget.shoppingRaw, budget.deferred, p.boughtCard)} />
+          </>
+        }
+        amount={formatWon(budget.shoppingRaw)}
         amountTone={budget.shoppingExhausted ? 'red' : 'deep'}
-        sub={budget.shoppingExhausted ? `생활비 ${formatWon(-budget.shoppingRaw)}원 부족` : undefined}
+        sub={budget.shoppingExhausted ? `${formatWon(-budget.shoppingRaw)}원 초과` : undefined}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       />
-      <Bucket name="생활비" amount={formatWon(budget.livingNow)} sub={`하루 ${formatWon(budget.livingPerDay)}원`} />
-      <Bucket tone="green" name="비상금" amount={formatWon(month.emergencyAmount)} />
+      <Bucket
+        icon={BUCKET_ICONS.living}
+        name={
+          <>
+            생활비
+            <InfoTip title="생활비" lines={LIVING_LINES} />
+          </>
+        }
+        amount={formatWon(budget.livingNow)}
+        sub={`하루 ${formatWon(budget.livingPerDay)}원`}
+      />
+      <Bucket
+        tone="green"
+        icon={BUCKET_ICONS.emergency}
+        name={
+          <>
+            예비비
+            <InfoTip title="예비비" lines={EMERGENCY_LINES} />
+          </>
+        }
+        amount={formatWon(month.emergencyAmount)}
+      />
 
       <p className="py-1 text-center text-sm text-muted">
         아낀 돈 <span className="font-bold text-green">+{formatWon(p.heldTotal)}원</span> · 산 돈{' '}

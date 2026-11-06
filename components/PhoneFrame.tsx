@@ -11,7 +11,7 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:flex md:h-dvh md:items-center md:justify-center md:p-6">
       <div className="flex min-h-dvh flex-col md:relative md:h-full md:max-h-[844px] md:min-h-0 md:w-[430px] md:overflow-hidden md:rounded-[40px] md:bg-white md:shadow-[0_18px_50px_rgba(201,56,107,.14)]">
         <Lace />
-        <div className="flex flex-1 flex-col md:min-h-0 md:overflow-y-auto">{children}</div>
+        <div data-frame className="flex flex-1 flex-col md:min-h-0 md:overflow-y-auto">{children}</div>
       </div>
     </div>
   )

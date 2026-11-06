@@ -31,7 +31,7 @@ async function main() {
 
   try {
     console.log('1) 청구 전 취소')
-    await chooseInternal(USER, { id: ids[0], name: '환불 확인', price: PRICE, choice: 'bought' })
+    await chooseInternal(USER, { id: ids[0], name: '환불 확인', price: PRICE, choice: 'bought', paymentMethod: 'card' })
     const bought = await ledger()
     check(bought.budget.shoppingRaw === before.budget.shoppingRaw - PRICE, '산 뒤 쇼핑 예산 −가격')
     const c1 = await cancelInternal(USER, ids[0])
@@ -59,6 +59,7 @@ async function main() {
       price: PRICE,
       verdict: 'green',
       choice: 'bought',
+      paymentMethod: 'card',
       shoppingAvailableAt: 0,
       overAmount: 0,
       decidedAt: purchasedAt,
