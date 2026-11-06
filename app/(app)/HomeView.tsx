@@ -122,15 +122,15 @@ export function HomeView(p: HomeViewProps) {
           )}
           {p.thisBill.reserved > 0 && (
             <p>
-              앱에서 산 {formatWon(p.thisBill.reserved)}원은 살 때 쇼핑 예산에서 빼고 남겨 둔 돈으로 내요.
-              {hide ? ' 그래서 이번 월급에서는 그만큼 덜 빼요.' : ` 그래서 이번 월급에서는 ${formatWon(p.thisBill.fromCash)}원만 빼요.`}
-              {p.thisBill.deferred > 0 && ` 그중 ${formatWon(p.thisBill.deferred)}원은 쇼핑 예산을 넘긴 금액이라 이번 월급에서 빠져요.`}
+              {formatWon(p.thisBill.reserved)}원은 지난 달에 남겨 둔 돈으로 내요.
+              {hide ? ' 이번 월급에서는 그만큼 덜 빼요.' : ` 이번 월급에서는 ${formatWon(p.thisBill.fromCash)}원만 빼요.`}
+              {p.thisBill.deferred > 0 && ` (예산 초과 ${formatWon(p.thisBill.deferred)}원 포함)`}
             </p>
           )}
           {p.nextBill.reserved > 0 && (
             <p>
               이 중 {formatWon(p.nextBill.reserved)}원은 카드값으로 남겨둘 돈이에요
-              {p.nextBill.dueDate ? ` (${shortDate(p.nextBill.dueDate)}까지 통장에 남겨 두세요).` : '.'}
+              {p.nextBill.dueDate ? ` (${shortDate(p.nextBill.dueDate)}까지).` : '.'}
             </p>
           )}
           {p.fixedCard > 0 && (
@@ -152,21 +152,21 @@ export function HomeView(p: HomeViewProps) {
         </div>
         {p.nextBill.reserved > 0 && (
           <dl className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-tint p-3 text-center">
-            <Term label="이번 주기에 남겨둘 돈" value={formatWon(p.nextBill.reserved)} />
-            <Term label="다음 월급에서 낼 돈" value={priv(p.nextBill.fromCash)} />
+            <Term label="남겨둘 돈" value={formatWon(p.nextBill.reserved)} />
+            <Term label="월급에서 낼 돈" value={priv(p.nextBill.fromCash)} />
           </dl>
         )}
         <div className="mt-2 flex flex-col gap-1 text-xs text-muted">
           {p.nextBill.reserved > 0 && (
             <p>
-              앱에서 산 {formatWon(p.nextBill.reserved)}원은 살 때 쇼핑 예산에서 뺐어요. 다음 카드값을 위해
+              {formatWon(p.nextBill.reserved)}원은 쇼핑 예산에서 뺀 돈이에요.
               {p.nextBill.dueDate ? ` ${shortDate(p.nextBill.dueDate)}까지` : ''} 통장에 남겨 두세요.
               {hide ? ' 나머지는 다음 월급에서 내요.' : ` 나머지 ${formatWon(p.nextBill.fromCash)}원은 다음 월급에서 내요.`}
-              {p.nextBill.deferred > 0 && ` 그중 ${formatWon(p.nextBill.deferred)}원은 쇼핑 예산을 넘긴 금액이에요.`}
+              {p.nextBill.deferred > 0 && ` (예산 초과 ${formatWon(p.nextBill.deferred)}원 포함)`}
             </p>
           )}
           {p.nextBill.reserved > 0 && p.livingNow < 0 && (
-            <p className="text-red">이번 달 생활비가 모자라서 남겨둘 돈을 다 못 남길 수 있어요. 못 남긴 만큼 다음 월급에서 더 빠져요.</p>
+            <p className="text-red">이번 달 생활비가 모자라요. 못 남긴 만큼 다음 월급에서 더 빠져요.</p>
           )}
           <p>
             다음 주기({range(p.nextStart, p.nextEnd)}) 예상 현금{' '}
@@ -180,7 +180,7 @@ export function HomeView(p: HomeViewProps) {
         name="쇼핑 예산"
         amount={formatWon(p.shoppingRaw)}
         amountTone={p.shoppingExhausted ? 'red' : 'deep'}
-        sub={p.shoppingExhausted ? `쇼핑 예산 ${formatWon(-p.shoppingRaw)}원 초과` : undefined}
+        sub={p.shoppingExhausted ? `${formatWon(-p.shoppingRaw)}원 초과` : undefined}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       >
@@ -224,9 +224,9 @@ export function HomeView(p: HomeViewProps) {
 export function ShoppingNote({ shoppingRaw, deferred, boughtCard }: { shoppingRaw: number; deferred: number; boughtCard: number }) {
   const fromLiving = Math.max(-(shoppingRaw + deferred), 0)
   const lines: string[] = []
-  if (boughtCard > 0) lines.push(`카드로 산 ${formatWon(boughtCard)}원은 지금 통장에서 안 나가고 카드값으로 빠져요.`)
-  if (deferred > 0) lines.push(`넘긴 ${formatWon(deferred)}원은 다음 월급에서 빠져요.`)
-  if (fromLiving > 0) lines.push(`넘긴 ${formatWon(fromLiving)}원은 이번 달 생활비에서 빠져요.`)
+  if (boughtCard > 0) lines.push(`카드로 산 ${formatWon(boughtCard)}원은 카드값으로 빠져요.`)
+  if (deferred > 0) lines.push(`초과 ${formatWon(deferred)}원은 다음 월급에서.`)
+  if (fromLiving > 0) lines.push(`초과 ${formatWon(fromLiving)}원은 이번 달 생활비에서.`)
   if (lines.length === 0) return null
   return <p className="mt-2 text-xs text-muted">{lines.join(' ')}</p>
 }

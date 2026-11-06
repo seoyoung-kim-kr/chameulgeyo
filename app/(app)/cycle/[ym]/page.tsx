@@ -82,7 +82,7 @@ function PastView({ p }: { p: PastCycle }) {
         name="쇼핑 예산"
         amount={formatWon(budget.shoppingRaw)}
         amountTone={budget.shoppingExhausted ? 'red' : 'deep'}
-        sub={budget.shoppingExhausted ? `쇼핑 예산 ${formatWon(-budget.shoppingRaw)}원 초과` : undefined}
+        sub={budget.shoppingExhausted ? `${formatWon(-budget.shoppingRaw)}원 초과` : undefined}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       >
