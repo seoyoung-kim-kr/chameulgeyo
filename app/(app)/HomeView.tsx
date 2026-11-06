@@ -34,6 +34,8 @@ export type HomeViewProps = {
   shopping: number
   shoppingRaw: number
   shoppingExhausted: boolean
+  /** 카드로 다음 달에 미룬 금액 (예산을 넘긴 카드 구매) */
+  deferred: number
   shoppingBudgetStart: number
   boughtTotal: number
   livingNow: number
@@ -159,9 +161,9 @@ export function HomeView(p: HomeViewProps) {
       <Bucket
         highlight
         name="쇼핑 예산"
-        amount={formatWon(p.shopping)}
+        amount={formatWon(p.shoppingRaw)}
         amountTone={p.shoppingExhausted ? 'red' : 'deep'}
-        sub={p.shoppingExhausted ? `생활비 ${formatWon(-p.shoppingRaw)}원 부족` : undefined}
+        sub={shoppingSub(p.shoppingRaw, p.deferred)}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       />
@@ -192,6 +194,19 @@ export function HomeView(p: HomeViewProps) {
       </BottomActions>
     </Screen>
   )
+}
+
+/**
+ * 쇼핑 예산이 마이너스일 때 그 돈이 어디서 나가는지.
+ * 카드로 미룬 만큼은 다음 달 카드값, 나머지는 이번 달 생활비에서.
+ */
+export function shoppingSub(shoppingRaw: number, deferred: number): string | undefined {
+  if (shoppingRaw >= 0) return undefined
+  const fromLiving = Math.max(-(shoppingRaw + deferred), 0)
+  const parts: string[] = []
+  if (deferred > 0) parts.push(`카드로 미룬 ${formatWon(deferred)}원은 다음 달에`)
+  if (fromLiving > 0) parts.push(`생활비 ${formatWon(fromLiving)}원 부족`)
+  return parts.join(' · ')
 }
 
 export function Term({ label, value }: { label: string; value: string }) {

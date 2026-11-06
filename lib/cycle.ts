@@ -161,9 +161,12 @@ export type RefundPlan = {
   beforeBilling: boolean
 }
 
-/** 카드 구매 환불·취소를 어느 대금에 반영할지. 출금일 당일 취소는 이미 출금된 것으로 본다. */
-export function refundPlan(purchaseDate: string, today: string, cutoffDay: number, cardPayDay: number): RefundPlan {
-  const originalDue = statementDueDate(purchaseDate, cutoffDay, cardPayDay)
+/**
+ * 카드 구매 환불·취소를 어느 대금에 반영할지. 출금일 당일 취소는 이미 출금된 것으로 본다.
+ * storedDue: 구매 때 저장해 둔 출금일. 있으면 그대로 쓴다 (그 뒤 설정을 바꿨어도 대금은 안 움직인다).
+ */
+export function refundPlan(purchaseDate: string, today: string, cutoffDay: number, cardPayDay: number, storedDue?: string | null): RefundPlan {
+  const originalDue = storedDue ?? statementDueDate(purchaseDate, cutoffDay, cardPayDay)
   const beforeBilling = originalDue > today
   return { originalDue, refundDue: beforeBilling ? originalDue : statementDueDate(today, cutoffDay, cardPayDay), beforeBilling }
 }

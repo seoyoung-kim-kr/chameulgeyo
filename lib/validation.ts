@@ -47,6 +47,8 @@ export const chooseSchema = z.object({
     .transform((v) => (v ? v : null)),
   price: z.number().int().min(PRICE_MIN).max(PRICE_MAX),
   choice: z.enum(['held', 'bought']),
+  /** 산 경우 실제로 낸 방법. 안 산 경우는 무시한다 */
+  paymentMethod: z.enum(['account', 'card']).optional(),
 })
 
 export type ChooseInput = z.input<typeof chooseSchema>

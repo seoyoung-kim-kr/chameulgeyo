@@ -60,12 +60,12 @@ async function main() {
 
     console.log('2) 산다·취소')
     const id = nanoid()
-    const r = await chooseInternal(a, { id, name: '격리 확인', price: 10_000, choice: 'bought' })
+    const r = await chooseInternal(a, { id, name: '격리 확인', price: 10_000, choice: 'bought', paymentMethod: 'card' })
     check(r.ok && !r.data.duplicated, 'A 산다')
     const [la2, lb2] = [await ledger(a), await ledger(b)]
     check(la2.cashflow.nextBill.amount === la.cashflow.nextBill.amount + 10_000, 'A 다음 카드값 +10,000')
     check(JSON.stringify(lb2.cashflow) === JSON.stringify(lb.cashflow) && lb2.boughtTotal === 0, 'B 장부는 그대로')
-    const dupFromB = await chooseInternal(b, { id, name: '같은 id', price: 10_000, choice: 'bought' })
+    const dupFromB = await chooseInternal(b, { id, name: '같은 id', price: 10_000, choice: 'bought', paymentMethod: 'card' })
     check(dupFromB.ok && dupFromB.data.duplicated, 'B 가 같은 id 를 보내도 A 기록을 덮지 않는다 (duplicated)')
     check((await ledger(b)).boughtTotal === 0, '그때도 B 쇼핑 예산은 그대로')
     const c = await cancelInternal(b, id)

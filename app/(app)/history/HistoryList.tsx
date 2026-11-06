@@ -13,6 +13,8 @@ export type HistoryItem = {
   price: number
   verdict: 'red' | 'green'
   choice: 'held' | 'bought'
+  /** 산 경우 어떤 돈으로 냈는지 (옛 기록은 카드) */
+  paymentMethod: 'account' | 'card'
   overAmount: number
   /** 'M/D' (KST) */
   date: string
@@ -130,10 +132,12 @@ function HistoryRow({ item: d }: { item: HistoryItem }) {
           <p className={clsx('truncate font-bold', !d.name && 'font-normal text-muted', canceled && 'text-muted')}>{d.name ?? '이름 없음'}</p>
           <p className="mt-1 text-xs text-muted">
             {d.date} · {d.verdict === 'red' ? `예산 ${formatWon(d.overAmount)}원 초과` : '예산 안'}
+            {!held && (d.paymentMethod === 'card' ? ' · 카드' : ' · 현금')}
           </p>
           {d.refund && (
             <p className="mt-1 text-xs text-muted">
-              환불됨 · {d.refund.due ? `${d.refund.due} 카드값에서 빠져요` : '카드값에서 빠져요'}
+              환불됨 ·{' '}
+              {d.paymentMethod === 'account' ? '쇼핑 예산으로 돌아왔어요' : d.refund.due ? `${d.refund.due} 카드값에서 빠져요` : '카드값에서 빠져요'}
             </p>
           )}
         </div>
@@ -148,7 +152,9 @@ function HistoryRow({ item: d }: { item: HistoryItem }) {
         <div className="flex items-center justify-end gap-2 text-xs">
           {confirming ? (
             <>
-              <span className="mr-auto text-muted">카드값에서 {formatWon(d.price)}원을 빼요.</span>
+              <span className="mr-auto text-muted">
+                {d.paymentMethod === 'card' ? `카드값에서 ${formatWon(d.price)}원을 빼요.` : `${formatWon(d.price)}원이 쇼핑 예산으로 돌아와요.`}
+              </span>
               <button type="button" onClick={() => setConfirming(false)} disabled={pending} className="h-8 rounded-full px-3 text-muted active:bg-soft">
                 아니요
               </button>

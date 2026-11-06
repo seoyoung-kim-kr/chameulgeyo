@@ -143,6 +143,16 @@ export const decisions = pgTable(
     /** 판정 시점의 쇼핑 가능액 (표시값) */
     shoppingAvailableAt: integer('shopping_available_at').notNull(),
     overAmount: integer('over_amount').notNull(),
+    /**
+     * 결제 수단 (bought 만 뜻이 있다). null = 0005 이전 기록 → 카드로 본다 (그때는 전부 카드로 계산했다).
+     * account: 쇼핑 예산(넘으면 이번 주기 생활비)에서 빠지고 끝. 카드 대금·준비금 없음.
+     * card: 대금에 가격 전액을 더하고, reserve_amount 만큼은 이번 주기 쇼핑 예산으로 묶는다(준비금).
+     */
+    paymentMethod: varchar('payment_method', { length: 7, enum: ['account', 'card'] }),
+    /** 카드 구매 중 이번 주기 쇼핑 예산으로 묶은 금액 (0 ~ price). null = price 전액 (0005 이전 기록). 나머지는 다음 달로 미룬 금액 */
+    reserveAmount: integer('reserve_amount'),
+    /** 카드 구매가 출금되는 날 (구매 시점 설정으로 계산). null = 지금 설정으로 다시 계산 (0005 이전 기록) */
+    dueDate: date('due_date', { mode: 'string' }),
     decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
     /** 환불·취소한 시각 (bought 만). 기록은 지우지 않는다 */
     canceledAt: timestamp('canceled_at', { withTimezone: true }),
@@ -161,5 +171,7 @@ export const decisions = pgTable(
     check('decisions_verdict', sql`${t.verdict} in ('red', 'green')`),
     check('decisions_choice', sql`${t.choice} in ('held', 'bought')`),
     check('decisions_price_range', sql`${t.price} between 1 and 100000000`),
+    check('decisions_payment_method', sql`${t.paymentMethod} is null or ${t.paymentMethod} in ('account', 'card')`),
+    check('decisions_reserve_range', sql`${t.reserveAmount} is null or ${t.reserveAmount} between 0 and ${t.price}`),
   ],
 )

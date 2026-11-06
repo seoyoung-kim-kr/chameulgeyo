@@ -37,6 +37,7 @@ async function HomeLoader() {
       shopping={budget.shopping}
       shoppingRaw={budget.shoppingRaw}
       shoppingExhausted={budget.shoppingExhausted}
+      deferred={budget.deferred}
       shoppingBudgetStart={month.shoppingBudgetStart}
       boughtTotal={home.boughtTotal}
       livingNow={budget.livingNow}

@@ -8,7 +8,7 @@ import { BottomActions, Card, Screen } from '@/components/Screen'
 import { shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
 import { getPastCycle, type PastCycle } from '@/lib/queries'
-import { MASK, Term, range } from '../../HomeView'
+import { MASK, Term, range, shoppingSub } from '../../HomeView'
 
 // 지난 주기 보기 (읽기 전용). 이번 주기 홈(/)과 라우트를 나눈 이유: 홈은 설정 마법사·판정 진입이 걸려 있고
 // Activity 로 보존되는 화면이라, 지난 주기 상태가 섞이지 않게 한다.
@@ -80,9 +80,9 @@ function PastView({ p }: { p: PastCycle }) {
       <Bucket
         highlight
         name="쇼핑 예산"
-        amount={formatWon(budget.shopping)}
+        amount={formatWon(budget.shoppingRaw)}
         amountTone={budget.shoppingExhausted ? 'red' : 'deep'}
-        sub={budget.shoppingExhausted ? `생활비 ${formatWon(-budget.shoppingRaw)}원 부족` : undefined}
+        sub={shoppingSub(budget.shoppingRaw, budget.deferred)}
         subTone="red"
         bar={{ pct: barPct, label: '남은 쇼핑 예산' }}
       />

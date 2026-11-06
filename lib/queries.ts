@@ -3,7 +3,6 @@ import { and, desc, eq, lt } from 'drizzle-orm'
 import { db } from '@/db'
 import { decisions, months, settings } from '@/db/schema'
 import { cycleFor, daysBetween, isCutoffDay, nextCycle, prevYm, todayKst, type Cycle } from './cycle'
-import type { Reserve } from './cashflow'
 import {
   DEFAULT_SETTINGS,
   readBills,
@@ -13,6 +12,7 @@ import {
   readReserves,
   readSettings,
   type CardBillRow,
+  type ReserveRow,
   type Ledger,
   type MonthRow,
   type Settings,
@@ -63,7 +63,7 @@ export async function getSetupDefaults(): Promise<{
   previous: MonthRow | null
   thisBill: CardBillRow | null
   nextBill: CardBillRow | null
-  reserves: Reserve[]
+  reserves: ReserveRow[]
 }> {
   const userId = await requireUserId()
   const { settings: s, cycle, next, today } = await currentCycle(userId)

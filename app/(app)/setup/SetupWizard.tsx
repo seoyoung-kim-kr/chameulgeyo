@@ -9,9 +9,10 @@ import { Chip } from '@/components/Chip'
 import { Field, MoneyInput, TextInput } from '@/components/Field'
 import { BottomActions, Card, Message, Screen } from '@/components/Screen'
 import { computeBudget } from '@/lib/budget'
-import { computeCashflow, type PaymentMethod, type Reserve } from '@/lib/cashflow'
-import { cardDueDate, cycleFor, nextCycle, shortDate } from '@/lib/cycle'
+import { computeCashflow, type PaymentMethod } from '@/lib/cashflow'
+import { cardDueDate, cycleFor, inCycle, nextCycle, shortDate } from '@/lib/cycle'
 import { formatWon } from '@/lib/format'
+import type { ReserveRow } from '@/lib/ledger'
 import { FIXED_MAX_COUNT, FIXED_NAME_MAX, type SaveMonthInput } from '@/lib/validation'
 import { logout, saveMonth, setHideAmounts } from './actions'
 
@@ -21,8 +22,8 @@ type Props = {
   /** 이미 저장된 대금의 출금일 (없으면 카드 출금일로 계산) */
   thisBillDue: string | null
   nextBillDue: string | null
-  /** 카드 결제 준비금 (이미 예산에서 뺀 카드 구매) */
-  reserves: Reserve[]
+  /** 카드 결제 준비금 (이미 예산에서 뺀 카드 구매) + 그 구매에서 다음 달로 미룬 금액 */
+  reserves: ReserveRow[]
   /** 홈에서 월급·고정지출·카드값을 가리는지 */
   hideAmounts: boolean
   /** 처음 쓰는 경우에만 날짜 단계부터 시작한다 */
@@ -94,6 +95,8 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
     reserves,
   })
   const budget = computeBudget({ cash: cashflow.cash, livingTarget, emergencyAmount, spentShopping: 0, cycleDays: cycle.days })
+  // 지난 달에 예산을 넘겨 카드로 산 금액 중 이번 카드값에 들어 있는 것 (이번 월급에서 빠진다)
+  const carried = reserves.filter((r) => inCycle(r.dueDate, cycle)).reduce((sum, r) => sum + r.deferred, 0)
   const unclassified = fixed.filter((f) => (f.name.trim() !== '' || f.amount > 0) && f.method === null).length
   // 이름 없는 0원 줄은 빈 줄로 보고 버린다. 금액만 있고 이름이 없으면 진행을 막는다.
   const filledFixed = fixed.filter((f) => f.name.trim() !== '' || f.amount > 0)
@@ -103,6 +106,15 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
 
   const updateFixed = (key: number, patch: Partial<FixedRow>) =>
     setFixed((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+  const moveFixed = (key: number, dir: -1 | 1) =>
+    setFixed((rows) => {
+      const i = rows.findIndex((r) => r.key === key)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= rows.length) return rows
+      const copy = [...rows]
+      ;[copy[i], copy[j]] = [copy[j], copy[i]]
+      return copy
+    })
   const addFixed = () => {
     setFixed((rows) => [...rows, { key: nextKey, name: '', amount: 0, method: null }])
     setNextKey((k) => k + 1)
@@ -194,7 +206,7 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
           <Card aria-label="고정지출">
             <Field label="고정지출" aside={<span className="font-bold text-ink">{formatWon(fixedTotal)}원</span>}>
               <ul className="flex flex-col divide-y divide-line">
-                {fixed.map((f) => (
+                {fixed.map((f, i) => (
                   <li key={f.key} className="grid grid-cols-[minmax(0,1fr)_5rem_2rem] items-center gap-2 py-3 first:pt-0">
                     <TextInput
                       aria-label="항목 이름"
@@ -225,12 +237,27 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
                     >
                       ×
                     </button>
-                    <MoneyInput
-                      label={`${f.name || '항목'} 금액`}
-                      value={f.amount}
-                      onChange={(amount) => updateFixed(f.key, { amount })}
-                      className="col-span-2"
-                    />
+                    <MoneyInput label={`${f.name || '항목'} 금액`} value={f.amount} onChange={(amount) => updateFixed(f.key, { amount })} />
+                    <div className="col-span-2 flex justify-end gap-1">
+                      <button
+                        type="button"
+                        aria-label={`${f.name || '항목'} 위로`}
+                        disabled={i === 0}
+                        className="flex size-8 items-center justify-center rounded-full text-muted active:bg-soft disabled:opacity-30"
+                        onClick={() => moveFixed(f.key, -1)}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${f.name || '항목'} 아래로`}
+                        disabled={i === fixed.length - 1}
+                        className="flex size-8 items-center justify-center rounded-full text-muted active:bg-soft disabled:opacity-30"
+                        onClick={() => moveFixed(f.key, 1)}
+                      >
+                        ▼
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -250,6 +277,9 @@ export function SetupWizard({ defaults, today, thisBillDue, nextBillDue, reserve
             <div className="flex flex-col gap-4">
               <Field label="이번 카드값" aside={<span>{shortDate(thisDue)} 출금</span>}>
                 <MoneyInput label="이번 카드값" value={thisBill} onChange={setThisBill} />
+                {carried > 0 && (
+                  <p className="mt-2 text-xs text-red">지난 달에 예산을 넘겨 카드로 산 {formatWon(carried)}원이 들어 있어요. 이번 월급에서 빠져요.</p>
+                )}
               </Field>
               <Field label="다음 카드값" aside={<span>{shortDate(nextDue)} 출금 예정</span>}>
                 <MoneyInput label="다음 카드값" value={nextBill} onChange={setNextBill} />
